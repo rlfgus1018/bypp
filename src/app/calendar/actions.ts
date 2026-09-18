@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { removeEventFromCalendar } from "@/lib/calendar/candidate-event-link";
+import { removeEventFromCalendar, setCalendarEventImportanceOverride } from "@/lib/calendar/candidate-event-link";
 import { parseEventInput, readEventForm } from "@/lib/calendar/event-input";
 import { getDb } from "@/lib/db/client";
 import { calendarEventsRepo, EventSyncInProgressError } from "@/lib/db/repositories/calendar-events";
 import { getGoogleRuntime } from "@/lib/google/runtime";
+import { sendMany, type SendManyResult } from "@/lib/google/bulk-send";
+import { OUTCOME_TEXT, RECOVERED_TEXT } from "@/lib/google/outcome-text";
 import { createGoogleEvent, type SyncOutcome } from "@/lib/google/sync-service";
 
 const Id = z.string().min(1);
@@ -54,22 +56,30 @@ export async function removeCalendarEvent(formData: FormData) {
   redirect(calendarUrl(null, String(formData.get("month") ?? ""), null));
 }
 
+const ImportanceInput = z.object({ id: Id, importance: z.enum(["important", "not_important", "auto"]) });
+const TABS = new Set(["important", "partnerships"]);
+
+// Marks an event important / not important / back to automatic. Its candidate (if it has one) gets the same
+// override in the same transaction. Local only: nothing is sent to Google, and nothing already on Google changes.
+export async function setEventImportance(formData: FormData) {
+  const { id, importance } = ImportanceInput.parse({ id: formData.get("id"), importance: formData.get("importance") });
+  setCalendarEventImportanceOverride(getDb(), id, importance === "auto" ? null : importance);
+  revalidatePath("/calendar");
+  revalidatePath("/candidates");
+
+  const back = new URLSearchParams();
+  const month = String(formData.get("month") ?? "");
+  if (MONTH.test(month)) back.set("month", month);
+  const tab = String(formData.get("tab") ?? "");
+  if (TABS.has(tab)) back.set("tab", tab);
+  back.set("event", id);
+  redirect(`/calendar?${back.toString()}`);
+}
+
 export type GoogleSyncState = { message: string | null; ok: boolean };
 
-const OUTCOME_TEXT: Record<SyncOutcome["result"], string> = {
-  synced: "Google 캘린더에 일정을 만들었습니다.",
-  "already-synced": "이미 Google 캘린더에 만들어진 일정입니다. 다시 만들지 않았습니다.",
-  "in-progress": "이미 전송 중입니다. 잠시 후 상태를 확인해 주세요.",
-  "not-found": "일정을 찾을 수 없습니다. 이미 제거되었을 수 있습니다.",
-  "not-syncable": "이 일정은 지금 상태로는 전송할 수 없습니다.",
-  "not-connected": "먼저 Google 계정을 연결해 주세요.",
-  "needs-reconnect": "Google 계정을 다시 연결해야 합니다.",
-  "other-account": "이 일정의 이전 전송 시도는 다른 Google 계정으로 이루어졌습니다. 중복을 막기 위해 전송하지 않았습니다.",
-  failed: "Google 캘린더에 만들지 못했습니다. 아래 사유를 확인하고 다시 시도해 주세요.",
-  uncertain: "요청은 보냈지만 결과를 확인하지 못했습니다. 다시 시도하면 먼저 이미 만들어졌는지 확인합니다.",
-};
-
-// The ONLY place a Google event is ever created, and only for the one event whose button was pressed.
+// A Google event is only ever created here and in sendEventsToGoogle below — always because the user asked
+// for exactly these events. This one: the single event whose button was pressed.
 // It takes an id and nothing else: title, time and place are re-read from the local database, never from the
 // browser. (Server Actions are POST-only and origin-checked by Next.js.)
 export async function createGoogleCalendarEvent(_previous: GoogleSyncState, formData: FormData): Promise<GoogleSyncState> {
@@ -87,6 +97,28 @@ export async function createGoogleCalendarEvent(_previous: GoogleSyncState, form
     return { ok: false, message: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도하면 중복 없이 이어서 확인합니다." };
   }
   revalidatePath("/calendar");
-  if (outcome.result === "synced" && outcome.recovered) return { ok: true, message: "이전 시도에서 이미 Google 캘린더에 만들어진 것을 확인했습니다. 새로 만들지 않았습니다." };
+  if (outcome.result === "synced" && outcome.recovered) return { ok: true, message: RECOVERED_TEXT };
   return { ok: outcome.result === "synced" || outcome.result === "already-synced", message: OUTCOME_TEXT[outcome.result] };
+}
+
+const BulkIds = z.array(Id).min(1).max(10);
+const BulkScopeInput = z.enum(["important", "all"]);
+
+// Bulk send, one small chunk per call (the client walks through the user's selection and shows progress).
+// It takes event ids and NOTHING else: every event is re-read from the local database and goes through the
+// same createGoogleEvent() path as the single button — same deterministic id, claim and look-before-resend —
+// so pressing twice, or from two tabs, cannot create an event twice. Ids the user excluded are simply never sent.
+// With scope "important", each event's importance is checked again on the server right before it is sent.
+export async function sendEventsToGoogle(ids: string[], scope: "important" | "all"): Promise<SendManyResult> {
+  const parsed = BulkIds.safeParse(ids);
+  const parsedScope = BulkScopeInput.safeParse(scope);
+  if (!parsed.success || !parsedScope.success) return { results: [], stopped: "invalid-request", unsent: [] };
+  const google = getGoogleRuntime();
+  if (!google) return { results: [], stopped: "not-connected", unsent: parsed.data };
+
+  try {
+    return await sendMany({ db: getDb(), oauth: google.oauth, api: google.api, tokenKey: google.tokenKey }, parsed.data, { scope: parsedScope.data });
+  } finally {
+    revalidatePath("/calendar");
+  }
 }

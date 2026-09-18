@@ -7,7 +7,9 @@ import type {
   CalendarEventWithSource,
   NewCalendarEvent,
 } from "@/lib/calendar/types";
+import type { ImportanceOverride } from "@/lib/importance/match";
 import type { ScheduleCategory } from "@/lib/schedule/schemas";
+import { importantSql } from "../importance-sql";
 import type { Db } from "../client";
 
 export type { CalendarEventChanges, CalendarEventWithSource, NewCalendarEvent };
@@ -24,6 +26,7 @@ type RawRow = {
   location: string | null;
   category: ScheduleCategory;
   edited_at: string | null;
+  importance_override: ImportanceOverride;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +43,7 @@ const toEvent = (raw: RawRow): CalendarEvent => ({
   location: raw.location,
   category: raw.category,
   editedAt: raw.edited_at,
+  importanceOverride: raw.importance_override ?? null,
   createdAt: raw.created_at,
   updatedAt: raw.updated_at,
 });
@@ -79,12 +83,12 @@ export function calendarEventsRepo(db: Db) {
       const result = db
         .prepare(
           `INSERT INTO calendar_events
-             (id, candidate_id, origin, kind, title, start_at, end_at, all_day, location, category, created_at, updated_at)
+             (id, candidate_id, origin, kind, title, start_at, end_at, all_day, location, category, importance_override, created_at, updated_at)
            VALUES
-             (@id, @candidateId, @origin, @kind, @title, @startAt, @endAt, @allDay, @location, @category, @now, @now)
+             (@id, @candidateId, @origin, @kind, @title, @startAt, @endAt, @allDay, @location, @category, @importanceOverride, @now, @now)
            ON CONFLICT(candidate_id) DO NOTHING`,
         )
-        .run({ ...event, id: randomUUID(), allDay: event.allDay ? 1 : 0, now });
+        .run({ ...event, importanceOverride: event.importanceOverride ?? null, id: randomUUID(), allDay: event.allDay ? 1 : 0, now });
       return result.changes === 1;
     },
 
@@ -172,6 +176,12 @@ export function calendarEventsRepo(db: Db) {
       return rows.map(toEvent);
     },
 
+    /** Every local event, dated ones first in time order. For whole-calendar operations (bulk send planning). */
+    listAll(): CalendarEvent[] {
+      const rows = db.prepare(`SELECT * FROM calendar_events ORDER BY start_at IS NULL, start_at ASC, all_day DESC, created_at ASC, id ASC`).all() as RawRow[];
+      return rows.map(toEvent);
+    },
+
     listUndated(): CalendarEvent[] {
       const rows = db.prepare("SELECT * FROM calendar_events WHERE start_at IS NULL ORDER BY created_at ASC, id ASC").all() as RawRow[];
       return rows.map(toEvent);
@@ -233,6 +243,33 @@ export function calendarEventsRepo(db: Db) {
 
     count(): number {
       return (db.prepare("SELECT COUNT(*) AS n FROM calendar_events").get() as { n: number }).n;
+    },
+
+    /** Every important event (override, else a keyword in its CURRENT title), dated first in time order. */
+    listImportant(): CalendarEvent[] {
+      const rows = db
+        .prepare(`SELECT e.* FROM calendar_events e WHERE ${importantSql("e")} ORDER BY e.start_at IS NULL, e.start_at ASC, e.created_at ASC, e.id ASC`)
+        .all() as RawRow[];
+      return rows.map(toEvent);
+    },
+
+    /** Ids of the important events, for marking chips and filtering plans in one query. */
+    importantIds(): Set<string> {
+      const rows = db.prepare(`SELECT e.id FROM calendar_events e WHERE ${importantSql("e")}`).all() as { id: string }[];
+      return new Set(rows.map((row) => row.id));
+    },
+
+    isImportant(id: string): boolean {
+      return db.prepare(`SELECT 1 FROM calendar_events e WHERE e.id = ? AND ${importantSql("e")}`).get(id) !== undefined;
+    },
+
+    /** Only ever called through setCalendarEventImportanceOverride / setCandidateImportanceOverride. */
+    setImportanceOverride(id: string, value: ImportanceOverride, now = new Date().toISOString()): boolean {
+      return db.prepare("UPDATE calendar_events SET importance_override = ?, updated_at = ? WHERE id = ?").run(value, now, id).changes === 1;
+    },
+
+    setImportanceOverrideByCandidate(candidateId: string, value: ImportanceOverride, now = new Date().toISOString()): number {
+      return db.prepare("UPDATE calendar_events SET importance_override = ?, updated_at = ? WHERE candidate_id = ?").run(value, now, candidateId).changes;
     },
   };
 }

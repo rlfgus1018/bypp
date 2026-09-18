@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { setCandidateStatus } from "@/app/candidates/actions";
+import { setCandidateImportance, setCandidateStatus } from "@/app/candidates/actions";
+import type { ImportanceReason } from "@/lib/importance/match";
+import { ImportanceBadge, ImportanceButtons, isImportantReason } from "./ImportanceControls";
 import { parseIsoToKst, weekdayOf, WEEKDAY_NAMES } from "@/lib/schedule/kst";
 import type { CandidateStatus, ScheduleCandidate } from "@/lib/schedule/schemas";
 
@@ -53,6 +55,7 @@ export function CandidateCard({
   calendarHref = null,
   slotTaken = false,
   googleCreated = false,
+  importance = { type: "none" },
 }: {
   candidate: CandidateView;
   /** set for an approved candidate: where its event is on the calendar */
@@ -61,11 +64,15 @@ export function CandidateCard({
   slotTaken?: boolean;
   /** its calendar event was already created on Google: taking it off the local calendar will not delete that */
   googleCreated?: boolean;
+  /** why it is (or is not) important — computed on the server from its title and override */
+  importance?: ImportanceReason;
 }) {
   const confidence = confidenceStyle(candidate.confidence);
+  const important = isImportantReason(importance);
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4">
+    <article className={`rounded-lg border bg-white p-4 ${important ? "border-amber-300 ring-1 ring-amber-200" : "border-slate-200"}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs">
+        <ImportanceBadge reason={importance} />
         <span className={`rounded px-2 py-0.5 font-medium ${ACTION_STYLE[candidate.action] ?? ACTION_STYLE.CREATE}`}>{candidate.action}</span>
         <span className="rounded bg-sky-100 px-2 py-0.5 font-medium text-sky-800">{candidate.category}</span>
         <span className={confidence.className}>
@@ -85,12 +92,8 @@ export function CandidateCard({
         <summary className="cursor-pointer text-slate-600">
           원본 메시지 보기 — {candidate.source.sender} · {formatKst(candidate.source.sentAt, true)}
         </summary>
-        {candidate.sourceExcerpt && (
-          <p className="mt-2 rounded bg-yellow-50 p-2 text-xs text-slate-700">근거: {candidate.sourceExcerpt}</p>
-        )}
-        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs leading-relaxed">
-          {candidate.source.text}
-        </pre>
+        {candidate.sourceExcerpt && <p className="mt-2 rounded bg-yellow-50 p-2 text-xs text-slate-700">근거: {candidate.sourceExcerpt}</p>}
+        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs leading-relaxed">{candidate.source.text}</pre>
       </details>
 
       {slotTaken && candidate.status === "PENDING" && (
@@ -119,6 +122,9 @@ export function CandidateCard({
         ) : (
           <StatusButton id={candidate.id} status="PENDING" label="Pending으로 되돌리기" className="border border-slate-300 text-slate-700" />
         )}
+        <span className="ml-auto">
+          <ImportanceButtons id={candidate.id} reason={importance} action={setCandidateImportance} />
+        </span>
       </div>
     </article>
   );

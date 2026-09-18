@@ -9,6 +9,14 @@ export type FilterValues = {
   to: string;
   undated: boolean;
   sort: "message" | "schedule";
+  /** the chosen chat (an opaque source key); "" = all chats. A scope, not a search condition. */
+  source: string;
+  /** the request named a chat in a malformed way (junk, several values): show nothing, change nothing */
+  sourceInvalid: boolean;
+  /** "important" = only important candidates; "" = all. A scope, like the chat. */
+  importance: "" | "important";
+  /** the request named the importance scope in a malformed way: show nothing, change nothing */
+  importanceInvalid: boolean;
 };
 
 const ACTIONS = [
@@ -34,6 +42,9 @@ export function CandidateFilters({ status, values, active }: { status: TabKey; v
   return (
     <form method="get" action="/candidates" className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
       <input type="hidden" name="status" value={status} />
+      {/* the chosen chat and importance scope are kept when the search conditions change */}
+      {values.source && <input type="hidden" name="source" value={values.source} />}
+      {values.importance && <input type="hidden" name="importance" value={values.importance} />}
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
         <label className="flex flex-col gap-1">
           <span className="text-xs text-slate-500">종류 (action)</span>
@@ -89,7 +100,10 @@ export function CandidateFilters({ status, values, active }: { status: TabKey; v
             적용
           </button>
           {active && (
-            <Link href={`/candidates?status=${status}`} className="rounded border border-slate-300 px-3 py-1.5">
+            <Link
+              href={`/candidates?status=${status}${values.source ? `&source=${values.source}` : ""}${values.importance ? `&importance=${values.importance}` : ""}`}
+              className="rounded border border-slate-300 px-3 py-1.5"
+            >
               초기화
             </Link>
           )}

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ConnectionView } from "@/lib/google/connection";
 
 const REASON_TEXT: Record<string, string> = {
@@ -36,7 +37,19 @@ function ConnectLink({ label }: { label: string }) {
 }
 
 /** Connection status only. Receives a ConnectionView: no token, secret or account id ever reaches a component. */
-export function GoogleConnectionCard({ connection, flash }: { connection: ConnectionView; flash: string | null }) {
+export function GoogleConnectionCard({
+  connection,
+  flash,
+  sendableCount,
+  importantSendableCount,
+}: {
+  connection: ConnectionView;
+  flash: string | null;
+  /** local events that could be created on Google right now (from the local database; Google is not asked) */
+  sendableCount: number;
+  /** of those, the important ones — the bulk page opens on "important only" */
+  importantSendableCount: number;
+}) {
   const note = flash ? FLASH[flash] : undefined;
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-3 text-sm" aria-label="Google 캘린더 연결">
@@ -62,6 +75,15 @@ export function GoogleConnectionCard({ connection, flash }: { connection: Connec
           <>
             <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">연결됨</span>
             <span className="text-slate-600">{connection.email ?? "(이메일 비공개)"} 의 기본 캘린더</span>
+            {/* a page to review and untick first — following this link sends nothing */}
+            <span className="ml-auto flex flex-wrap items-center gap-2">
+              <Link href="/calendar/google?scope=important" className="rounded border border-amber-500 px-3 py-1.5 text-sm font-medium text-amber-900">
+                ★ 중요 일정 Google로 보내기 ({importantSendableCount.toLocaleString()}건)
+              </Link>
+              <Link href="/calendar/google?scope=all" className="text-xs text-slate-600 underline">
+                전체 {sendableCount.toLocaleString()}건
+              </Link>
+            </span>
           </>
         )}
         {connection.state === "needs-reconnect" && (
@@ -76,7 +98,7 @@ export function GoogleConnectionCard({ connection, flash }: { connection: Connec
         )}
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        연결만으로는 아무것도 전송되지 않습니다. 일정을 열어 &ldquo;Google에 일정 생성&rdquo;을 누른 일정만, 한 번씩 만들어집니다(단방향 · 이후 수정·삭제는
+        연결만으로는 아무것도 전송되지 않습니다. 일정을 열어 &ldquo;Google에 일정 생성&rdquo;을 누르거나 &ldquo;한꺼번에 보내기&rdquo;에서 고른 일정만, 한 번씩 만들어집니다(단방향 · 이후 수정·삭제는
         Google에 반영되지 않음).
       </p>
     </section>

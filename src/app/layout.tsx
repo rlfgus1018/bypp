@@ -25,6 +25,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/calendar" className="text-slate-600 hover:text-slate-900">
               캘린더
             </Link>
+            <Link href="/settings" className="text-slate-600 hover:text-slate-900">
+              설정
+            </Link>
           </nav>
         </header>
         <ExtractionProvider>

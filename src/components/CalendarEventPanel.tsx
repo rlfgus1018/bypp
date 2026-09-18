@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { removeCalendarEvent } from "@/app/calendar/actions";
+import { removeCalendarEvent, setEventImportance } from "@/app/calendar/actions";
 import { toFormValues } from "@/lib/calendar/event-input";
 import { formatClock, formatDay, formatEventWhen } from "@/lib/calendar/format";
 import { normalizeTimes } from "@/lib/calendar/normalize";
 import type { CalendarEvent, CalendarEventWithSource } from "@/lib/calendar/types";
 import type { SyncView } from "@/lib/google/sync-view";
+import type { ImportanceReason } from "@/lib/importance/match";
 import { parseIsoToKst } from "@/lib/schedule/kst";
 import { CalendarEventForm } from "./CalendarEventForm";
 import { chipStyle, kindLabel } from "./CalendarMonth";
 import { GoogleSyncSection } from "./GoogleSyncSection";
+import { ImportanceBadge, ImportanceButtons, reasonText } from "./ImportanceControls";
 
 export function CalendarEventPanel({
   event,
@@ -18,6 +20,8 @@ export function CalendarEventPanel({
   month,
   closeHref,
   hrefFor,
+  importance = { type: "none" },
+  tab = "",
 }: {
   event: CalendarEventWithSource;
   sync: SyncView;
@@ -26,6 +30,9 @@ export function CalendarEventPanel({
   month: string;
   closeHref: string;
   hrefFor: (params: { event: string }) => string;
+  importance?: ImportanceReason;
+  /** the calendar tab the panel is open on, so the importance buttons come back to it */
+  tab?: string;
 }) {
   const notice = kindLabel(event);
   const extracted = event.source?.extracted ?? null;
@@ -36,6 +43,8 @@ export function CalendarEventPanel({
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className={`rounded px-2 py-0.5 font-medium ${chipStyle(event)}`}>{notice ?? event.category}</span>
         {notice && <span className="rounded bg-sky-100 px-2 py-0.5 font-medium text-sky-800">{event.category}</span>}
+        <ImportanceBadge reason={importance} />
+        {importance.type === "override-not-important" && <span className="text-slate-500">· {reasonText(importance)}</span>}
         {event.editedAt && <span className="text-slate-500">· 캘린더에서 수정됨</span>}
         <Link href={closeHref} className="ml-auto rounded border border-slate-300 px-2 py-0.5 text-slate-600">
           닫기
@@ -45,6 +54,10 @@ export function CalendarEventPanel({
       <h2 className={`mt-2 text-base font-semibold ${event.kind === "CANCEL_NOTICE" ? "line-through" : ""}`}>{event.title}</h2>
       <p className="mt-1">{formatEventWhen(event)}</p>
       <p className="text-slate-600">{event.location ?? "장소 정보 없음"}</p>
+      <div className="mt-2">
+        <ImportanceButtons id={event.id} reason={importance} action={setEventImportance} extraFields={{ month, ...(tab ? { tab } : {}) }} />
+        {event.candidateId && <p className="mt-1 text-xs text-slate-500">중요 표시는 원본 일정 후보에도 함께 적용됩니다. Google에 이미 보낸 일정은 바뀌지 않습니다.</p>}
+      </div>
       {notice && (
         <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
           이 항목은 &ldquo;{notice}&rdquo;입니다. 어떤 기존 일정에 대한 공지인지는 자동으로 연결하지 않으므로, 해당 일정을 직접 수정하거나 제거해 주세요.

@@ -5,16 +5,36 @@
 export type ExportPreview = {
   container: string | null;
   roomName: string | null;
+  chatTitle: string;
+  knownChat: boolean;
+  newMessages: number;
+  duplicateMessages: number;
   totalMessages: number;
   firstSentAt: string | null;
   lastSentAt: string | null;
-  days: { date: string; detected: number; toExtract: number; needsLlm: number }[];
+  days: { date: string; detected: number; toExtract: number; needsLlm: number; important: number }[];
+  importantKeywords: number;
 };
 
 /** Inclusive KST calendar dates (YYYY-MM-DD); "" = open-ended. Matches the "from"/"to" upload fields. */
 export type PeriodValue = { from: string; to: string };
 
-const SECONDS_PER_LLM_MESSAGE = 5;
+/** How LLM requests are shaped on this server (from the environment); only numbers, nothing secret. */
+export type LlmPlan = { batchSize: number; rpm: number; concurrency: number };
+
+/**
+ * A rough duration: the work itself (a batched request takes longer than a single one) spread over the
+ * requests in flight, plus a minute of waiting for every per-minute window the requests overflow into.
+ */
+export function estimateLlmSeconds(messages: number, plan: LlmPlan): { requests: number; seconds: number } {
+  const requests = Math.ceil(messages / Math.max(1, plan.batchSize));
+  const perRequest = plan.batchSize > 1 ? 6 : 3;
+  const work = (requests * perRequest) / Math.max(1, plan.concurrency);
+  const waiting = plan.rpm > 0 ? Math.max(0, Math.ceil(requests / plan.rpm) - 1) * 60 : 0;
+  return { requests, seconds: Math.round(work + waiting) };
+}
+
+const formatDuration = (seconds: number) => (seconds < 90 ? `약 ${Math.max(5, Math.round(seconds / 5) * 5)}초` : `약 ${Math.ceil(seconds / 60)}분`);
 
 const kstToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
@@ -35,12 +55,13 @@ const PRESETS: { label: string; range: () => PeriodValue }[] = [
 const inPeriod = (date: string, { from, to }: PeriodValue) => (!from || date >= from) && (!to || date <= to);
 
 export function summarizePeriod(preview: ExportPreview, value: PeriodValue) {
-  const total = { detected: 0, toExtract: 0, needsLlm: 0, heldBack: 0 };
+  const total = { detected: 0, toExtract: 0, needsLlm: 0, important: 0, heldBack: 0 };
   for (const day of preview.days) {
     if (inPeriod(day.date, value)) {
       total.detected += day.detected;
       total.toExtract += day.toExtract;
       total.needsLlm += day.needsLlm;
+      total.important += day.important;
     } else total.heldBack += day.toExtract;
   }
   return total;
@@ -52,12 +73,14 @@ export function PeriodPicker({
   value,
   onChange,
   llmEnabled,
+  llmPlan,
   disabled,
 }: {
   preview: ExportPreview;
   value: PeriodValue;
   onChange: (value: PeriodValue) => void;
   llmEnabled: boolean;
+  llmPlan: LlmPlan;
   disabled: boolean;
 }) {
   const months = new Map<string, { month: string; toExtract: number; needsLlm: number; selected: number }>();
@@ -72,14 +95,28 @@ export function PeriodPicker({
   const rows = [...months.values()].sort((a, b) => b.month.localeCompare(a.month));
   const peak = Math.max(1, ...rows.map((row) => row.toExtract));
   const total = summarizePeriod(preview, value);
-  const minutes = Math.ceil((total.needsLlm * SECONDS_PER_LLM_MESSAGE) / 60);
+  const estimate = estimateLlmSeconds(total.needsLlm, llmPlan);
   const invalid = value.from !== "" && value.to !== "" && value.from > value.to;
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
       <h2 className="font-semibold">추출 기간 선택</h2>
+      <p className={`mt-2 break-words rounded p-2 ${preview.knownChat ? "bg-sky-50 text-sky-900" : "bg-slate-50 text-slate-700"}`}>
+        {preview.knownChat ? (
+          <>
+            이미 등록된 채팅방입니다: <strong>{preview.chatTitle}</strong>. 기존 메시지 {preview.duplicateMessages.toLocaleString()}건은 건너뛰고{" "}
+            <strong>새 메시지 {preview.newMessages.toLocaleString()}건만</strong> 추가됩니다. 이미 추출된 후보와 검토 상태는 그대로이고, 새 후보는 같은 채팅방
+            아래에 들어갑니다.
+          </>
+        ) : (
+          <>
+            새 채팅방: <strong>{preview.chatTitle}</strong> — 일정 후보 화면에서 이 제목 아래로 분류됩니다.
+            {preview.duplicateMessages > 0 ? ` (이미 저장된 메시지 ${preview.duplicateMessages.toLocaleString()}건은 건너뜁니다.)` : ""}
+          </>
+        )}
+      </p>
       <p className="mt-1 text-xs text-slate-500">
-        {preview.roomName ?? "(방 이름 없음)"} · 메시지 {preview.totalMessages.toLocaleString()}건 · {preview.firstSentAt?.slice(0, 10)} ~{" "}
+        메시지 {preview.totalMessages.toLocaleString()}건 · {preview.firstSentAt?.slice(0, 10)} ~{" "}
         {preview.lastSentAt?.slice(0, 10)}. 기간은 <strong>메시지를 보낸 날짜</strong> 기준입니다. 기간 밖 메시지는 저장만 해 두고 추출하지 않으며,
         나중에 같은 파일을 더 넓은 기간으로 다시 올리면 그때 추출됩니다.
       </p>
@@ -128,7 +165,8 @@ export function PeriodPicker({
         {llmEnabled ? (
           <>
             {" "}
-            · 그중 Gemini 필요 <strong className="tabular-nums">{total.needsLlm.toLocaleString()}</strong>건 (요청 간격 기준 약 {minutes}분)
+            · 그중 LLM 필요 <strong className="tabular-nums">{total.needsLlm.toLocaleString()}</strong>건 (요청 {estimate.requests.toLocaleString()}회 ·{" "}
+            {formatDuration(estimate.seconds)})
           </>
         ) : (
           <> · 그중 heuristic 처리 {total.needsLlm.toLocaleString()}건</>
@@ -136,6 +174,12 @@ export function PeriodPicker({
         · 기간 밖 보류 <span className="tabular-nums">{total.heldBack.toLocaleString()}</span>건
         {total.detected > total.toExtract ? ` · 이미 처리됨 ${(total.detected - total.toExtract).toLocaleString()}건` : ""}
       </p>
+      {preview.importantKeywords > 0 && (
+        <p className="mt-2 text-xs text-amber-900">
+          ★ 중요 키워드 포함 메시지 <strong className="tabular-nums">{total.important.toLocaleString()}</strong>건
+          <span className="block text-slate-500">※ 일정 후보 추출 전 원문 기준 예상치입니다. 실제 중요 여부는 추출된 일정 제목으로 판단합니다.</span>
+        </p>
+      )}
 
       {rows.length > 0 && (
         <div className="mt-3 max-h-56 overflow-y-auto">
@@ -145,7 +189,7 @@ export function PeriodPicker({
                 <th className="py-1 font-normal">월</th>
                 <th className="py-1 font-normal">추출 대상 (진한 부분 = 선택됨)</th>
                 <th className="whitespace-nowrap py-1 pl-2 text-right font-normal">대상</th>
-                <th className="whitespace-nowrap py-1 pl-2 text-right font-normal">{llmEnabled ? "Gemini" : "heuristic"}</th>
+                <th className="whitespace-nowrap py-1 pl-2 text-right font-normal">{llmEnabled ? "LLM" : "heuristic"}</th>
               </tr>
             </thead>
             <tbody>

@@ -7,10 +7,17 @@ import {
   type ScheduleCandidateDraft,
   type ScheduleCategory,
 } from "@/lib/schedule/schemas";
+import type { SourceTuple, StatusCounts } from "@/lib/candidates/source-group";
+import type { ImportanceOverride } from "@/lib/importance/match";
+import { importantSql } from "../importance-sql";
 import type { Db } from "../client";
 
 export type CandidateWithSource = ScheduleCandidate & {
   source: { sender: string; sentAt: string; text: string };
+  /** where its message was first stored (upload file name / room names); the review page groups on this */
+  origin: SourceTuple;
+  /** the user's manual importance decision; null = follow the important keywords (matched on the TITLE) */
+  importanceOverride: ImportanceOverride;
 };
 
 export type CandidateFilter = {
@@ -29,12 +36,28 @@ export type CandidateFilter = {
   includeUndated?: boolean;
   /** "message": newest source message first (default). "schedule": earliest schedule first, undated last. */
   sort?: "message" | "schedule";
+  /**
+   * Restrict to candidates whose stored origin is one of these (already resolved from a source key by the
+   * caller). An EMPTY array matches nothing: an unknown source must never widen to "everything".
+   */
+  sources?: SourceTuple[];
+  /** "important" = only candidates that are important (override, else a keyword in the title) */
+  importance?: "important";
+  /** the request itself was malformed: match nothing (never widen to "everything") */
+  matchNothing?: boolean;
 };
 
+// The origin of a candidate: its message's first upload. LEFT JOIN, so a candidate without import metadata
+// is still listed (it falls into the "unknown" group).
+const FROM = `FROM schedule_candidates c
+           JOIN messages m ON m.id = c.source_message_id
+           LEFT JOIN imports i ON i.id = m.first_import_id`;
+const ORIGIN_COLUMNS = "i.filename AS src_filename, i.room_name AS src_room_name, m.room_name AS msg_room_name";
+
 /** All stored datetimes are KST ISO strings, so the first ten characters are the KST calendar date. */
-function buildWhere(filter: CandidateFilter, withStatus: boolean): { sql: string; params: string[] } {
+function buildWhere(filter: CandidateFilter, withStatus: boolean): { sql: string; params: (string | null)[] } {
   const clauses: string[] = [];
-  const params: string[] = [];
+  const params: (string | null)[] = [];
   const add = (clause: string, value: string) => {
     clauses.push(clause);
     params.push(value);
@@ -59,6 +82,14 @@ function buildWhere(filter: CandidateFilter, withStatus: boolean): { sql: string
     }
     const inPeriod = `(${dated.join(" AND ")})`;
     clauses.push(filter.includeUndated ? `(${inPeriod} OR c.start_at IS NULL)` : inPeriod);
+  }
+  if (filter.matchNothing) clauses.push("0");
+  if (filter.importance === "important") clauses.push(importantSql("c"));
+  if (filter.sources) {
+    // IS (not =) so that NULL parts of an origin match exactly. Values are bound, never interpolated.
+    const each = filter.sources.map(() => "(i.filename IS ? AND i.room_name IS ? AND m.room_name IS ?)");
+    clauses.push(each.length > 0 ? `(${each.join(" OR ")})` : "0");
+    for (const source of filter.sources) params.push(source.filename, source.importRoomName, source.messageRoomName);
   }
   return { sql: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "", params };
 }
@@ -85,6 +116,10 @@ type RawRow = {
   msg_sender: string;
   msg_sent_at: string;
   msg_text: string;
+  src_filename: string | null;
+  src_room_name: string | null;
+  msg_room_name: string | null;
+  importance_override: ImportanceOverride;
 };
 
 const toCandidate = (raw: RawRow): CandidateWithSource => ({
@@ -107,6 +142,8 @@ const toCandidate = (raw: RawRow): CandidateWithSource => ({
   createdAt: raw.created_at,
   updatedAt: raw.updated_at,
   source: { sender: raw.msg_sender, sentAt: raw.msg_sent_at, text: raw.msg_text },
+  origin: { filename: raw.src_filename, importRoomName: raw.src_room_name, messageRoomName: raw.msg_room_name },
+  importanceOverride: raw.importance_override ?? null,
 });
 
 export function candidatesRepo(db: Db) {
@@ -147,8 +184,8 @@ export function candidatesRepo(db: Db) {
     findById(id: string): CandidateWithSource | null {
       const row = db
         .prepare(
-          `SELECT c.*, m.sender AS msg_sender, m.sent_at AS msg_sent_at, m.text AS msg_text
-           FROM schedule_candidates c JOIN messages m ON m.id = c.source_message_id WHERE c.id = ?`,
+          `SELECT c.*, m.sender AS msg_sender, m.sent_at AS msg_sent_at, m.text AS msg_text, ${ORIGIN_COLUMNS}
+           ${FROM} WHERE c.id = ?`,
         )
         .get(id) as RawRow | undefined;
       return row ? toCandidate(row) : null;
@@ -156,14 +193,15 @@ export function candidatesRepo(db: Db) {
 
     listWithSource(filter: CandidateFilter = {}): CandidateWithSource[] {
       const where = buildWhere(filter, true);
+      // c.id last: a stable order even when everything else ties
       const order =
         filter.sort === "schedule"
-          ? "c.start_at IS NULL, c.start_at ASC, m.sent_at DESC, c.candidate_index ASC"
-          : "m.sent_at DESC, c.candidate_index ASC";
+          ? "c.start_at IS NULL, c.start_at ASC, m.sent_at DESC, c.candidate_index ASC, c.id ASC"
+          : "m.sent_at DESC, c.candidate_index ASC, c.id ASC";
       const rows = db
         .prepare(
-          `SELECT c.*, m.sender AS msg_sender, m.sent_at AS msg_sent_at, m.text AS msg_text
-           FROM schedule_candidates c JOIN messages m ON m.id = c.source_message_id
+          `SELECT c.*, m.sender AS msg_sender, m.sent_at AS msg_sent_at, m.text AS msg_text, ${ORIGIN_COLUMNS}
+           ${FROM}
            ${where.sql}
            ORDER BY ${order}`,
         )
@@ -175,9 +213,14 @@ export function candidatesRepo(db: Db) {
     listIds(filter: CandidateFilter = {}): string[] {
       const where = buildWhere(filter, true);
       const rows = db
-        .prepare(`SELECT c.id FROM schedule_candidates c JOIN messages m ON m.id = c.source_message_id ${where.sql}`)
+        .prepare(`SELECT c.id ${FROM} ${where.sql}`)
         .all(...where.params) as { id: string }[];
       return rows.map((row) => row.id);
+    },
+
+    /** Only ever called through setCandidateImportanceOverride / setCalendarEventImportanceOverride. */
+    setImportanceOverride(id: string, value: ImportanceOverride, now = new Date().toISOString()): boolean {
+      return db.prepare("UPDATE schedule_candidates SET importance_override = ?, updated_at = ? WHERE id = ?").run(value, now, id).changes === 1;
     },
 
     updateStatus(id: string, status: CandidateStatus): boolean {
@@ -196,12 +239,31 @@ export function candidatesRepo(db: Db) {
       const rows = db
         .prepare(
           `SELECT c.status AS status, COUNT(*) AS n
-           FROM schedule_candidates c JOIN messages m ON m.id = c.source_message_id
+           ${FROM}
            ${where.sql} GROUP BY c.status`,
         )
         .all(...where.params) as { status: CandidateStatus; n: number }[];
       for (const row of rows) counts[row.status] = row.n;
       return counts;
+    },
+
+    /**
+     * Every stored origin that has candidates, with its counts per review status — deliberately WITHOUT any
+     * search filter, so the list of chats to choose from never shrinks because of a filter.
+     */
+    listOrigins(): { tuple: SourceTuple; counts: StatusCounts }[] {
+      const rows = db
+        .prepare(
+          `SELECT ${ORIGIN_COLUMNS},
+                  SUM(c.status = 'PENDING') AS pending, SUM(c.status = 'APPROVED') AS approved, SUM(c.status = 'IGNORED') AS ignored
+           ${FROM}
+           GROUP BY i.filename, i.room_name, m.room_name`,
+        )
+        .all() as { src_filename: string | null; src_room_name: string | null; msg_room_name: string | null; pending: number; approved: number; ignored: number }[];
+      return rows.map((row) => ({
+        tuple: { filename: row.src_filename, importRoomName: row.src_room_name, messageRoomName: row.msg_room_name },
+        counts: { PENDING: row.pending, APPROVED: row.approved, IGNORED: row.ignored },
+      }));
     },
 
     countByExtractor(): Record<string, number> {

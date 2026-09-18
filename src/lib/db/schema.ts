@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS imports (
@@ -107,6 +107,15 @@ CREATE TABLE IF NOT EXISTS oauth_states (
   created_at TEXT NOT NULL
 );
 
+-- v5: words that make a schedule "important" when they appear in its TITLE (see src/lib/importance/match.ts).
+-- Applied at query time, so adding or removing a word takes effect on existing candidates and events at once.
+CREATE TABLE IF NOT EXISTS important_keywords (
+  id TEXT PRIMARY KEY,
+  keyword TEXT NOT NULL,             -- as the user typed it (display)
+  normalized TEXT NOT NULL UNIQUE,   -- normalizeForMatch(keyword) (comparison)
+  created_at TEXT NOT NULL
+);
+
 -- One row per (local event, provider). No row = never sent.
 --   SYNCING   claimed by a request that holds the lease       SYNCED  created (or found) on Google
 --   FAILED    known not to exist remotely                     UNCERTAIN  sent, outcome unknown — the next
@@ -139,4 +148,16 @@ export const ADDED_COLUMNS: { table: string; column: string; ddl: string }[] = [
   { table: "imports", column: "range_from", ddl: "ALTER TABLE imports ADD COLUMN range_from TEXT" },
   { table: "imports", column: "range_to", ddl: "ALTER TABLE imports ADD COLUMN range_to TEXT" },
   { table: "imports", column: "out_of_range_count", ddl: "ALTER TABLE imports ADD COLUMN out_of_range_count INTEGER NOT NULL DEFAULT 0" },
+  // v5: the user's manual importance decision. NULL = follow the keywords. A user state like `status`, not an
+  // extraction result; kept in step between a candidate and the calendar event derived from it.
+  {
+    table: "schedule_candidates",
+    column: "importance_override",
+    ddl: "ALTER TABLE schedule_candidates ADD COLUMN importance_override TEXT CHECK (importance_override IN ('important', 'not_important'))",
+  },
+  {
+    table: "calendar_events",
+    column: "importance_override",
+    ddl: "ALTER TABLE calendar_events ADD COLUMN importance_override TEXT CHECK (importance_override IN ('important', 'not_important'))",
+  },
 ];

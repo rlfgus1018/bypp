@@ -1,3 +1,4 @@
+import type { ImportanceOverride } from "@/lib/importance/match";
 import type { ScheduleCategory } from "@/lib/schedule/schemas";
 
 // The user's own schedule inside BYPP. A ScheduleCandidate is the extraction record; a CalendarEvent is
@@ -28,6 +29,8 @@ export type CalendarEvent = EventTimeFields & {
   location: string | null;
   category: ScheduleCategory;
   editedAt: string | null;
+  /** the user's manual importance decision; null = follow the important keywords */
+  importanceOverride: ImportanceOverride;
   createdAt: string;
   updatedAt: string;
 };
@@ -39,6 +42,8 @@ export type NewCalendarEvent = EventTimeFields & {
   title: string;
   location: string | null;
   category: ScheduleCategory;
+  /** copied from the candidate on approval; omitted = null */
+  importanceOverride?: ImportanceOverride;
 };
 
 /** What the user can change from the calendar. */

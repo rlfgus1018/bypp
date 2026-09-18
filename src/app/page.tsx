@@ -1,4 +1,5 @@
 import { UploadForm } from "@/components/UploadForm";
+import { chatTitleOf } from "@/lib/candidates/source-group";
 import { getDb } from "@/lib/db/client";
 import { importsRepo } from "@/lib/db/repositories/imports";
 import { messagesRepo } from "@/lib/db/repositories/messages";
@@ -13,6 +14,7 @@ export default function HomePage() {
   // Computed on the server; only this plain string (never the key) reaches the browser.
   const llm = resolveLlmConfig();
   const llmLabel = describeLlm(llm);
+  const providerLabel = llm?.provider === "openrouter" ? "OpenRouter/DeepSeek" : "Google Gemini";
 
   return (
     <div className="space-y-6">
@@ -27,9 +29,9 @@ export default function HomePage() {
         <p className="font-mono text-xs">{llmLabel}</p>
         {llm ? (
           <p className="mt-2 text-amber-900">
-            ⚠ Gemini API가 활성화되어 있습니다. 일정 해석이 필요한 일부 카카오톡 메시지(전화번호·이메일·URL 마스킹, 보낸 사람 제외)가
-            외부 Google Gemini API로 전송될 수 있습니다. 무료 API Tier의 데이터 처리 정책은 유료 Tier와 다를 수 있으므로, 실제
-            개인/타인의 대화 데이터를 전송하기 전에 최신 Google 정책을 확인하세요.
+            ⚠ {providerLabel} API가 활성화되어 있습니다. 일정 해석이 필요한 일부 카카오톡 메시지(전화번호·이메일·URL 마스킹, 보낸 사람 제외
+            {llm.batchSize > 1 ? `, 같은 방의 메시지를 한 요청에 최대 ${llm.batchSize}건씩` : ""})가
+            외부 {providerLabel} API로 전송될 수 있습니다. 실제 개인/타인의 대화 데이터를 전송하기 전에 선택한 공급자의 최신 데이터 처리 정책을 확인하세요.
           </p>
         ) : (
           <p className="mt-1 text-slate-500">
@@ -41,6 +43,7 @@ export default function HomePage() {
       <UploadForm
         initialOverall={{ extracted: statuses.EXTRACTED ?? 0, failed: statuses.FAILED ?? 0, pending: statuses.PENDING_EXTRACTION ?? 0 }}
         llmEnabled={llm !== null}
+        llmPlan={{ batchSize: llm?.batchSize ?? 1, rpm: llm?.rpm ?? 0, concurrency: llm?.concurrency ?? 1 }}
       />
 
       {recent.length > 0 && (
@@ -49,7 +52,9 @@ export default function HomePage() {
           <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white text-sm">
             {recent.map((item) => (
               <li key={item.id} className="flex flex-wrap justify-between gap-2 px-3 py-2">
-                <span className="truncate">{item.filename}</span>
+                <span className="min-w-0 break-words" title={item.filename}>
+                  {chatTitleOf({ filename: item.filename, importRoomName: item.roomName, messageRoomName: null }).title}
+                </span>
                 <span className="tabular-nums text-slate-500">
                   {item.rangeFrom || item.rangeTo ? `기간 ${item.rangeFrom ?? "처음"}~${item.rangeTo ?? "끝"} · ` : ""}
                   신규 {item.newMessages.toLocaleString()} · 중복 {item.duplicateMessages.toLocaleString()} · 추출 대상{" "}

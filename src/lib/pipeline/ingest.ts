@@ -1,7 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
+import { chatTitleOf, sourceKeyOf } from "@/lib/candidates/source-group";
 import type { Db } from "@/lib/db/client";
+import { importantKeywordsRepo } from "@/lib/db/repositories/important-keywords";
 import { importsRepo } from "@/lib/db/repositories/imports";
 import { messagesRepo, type ProcessingStatus } from "@/lib/db/repositories/messages";
+import { matchingKeywords } from "@/lib/importance/match";
 import { decodeExportFile, type ExportContainer } from "@/lib/kakao-export/decoder";
 import { parseKakaoExport } from "@/lib/kakao-export/parser";
 import { computeFingerprints } from "@/lib/messages/fingerprint";
@@ -30,6 +33,8 @@ export type IngestSummary = {
   importId: string;
   container: ExportContainer | null;
   roomName: string | null;
+  /** the chat this upload belongs to: the file's title without the member count */
+  chatTitle: string;
   totalParsed: number;
   newMessages: number;
   duplicateMessages: number;
@@ -75,6 +80,7 @@ export function ingestMessages(
     importId,
     container: meta.container,
     roomName: meta.roomName,
+    chatTitle: chatTitleOf({ filename: meta.filename, importRoomName: meta.roomName, messageRoomName: null }).title,
     totalParsed: messages.length,
     newMessages: 0,
     duplicateMessages: 0,
@@ -185,6 +191,13 @@ export async function ingestKakaoExport(
 export type ExportPreview = {
   container: ExportContainer | null;
   roomName: string | null;
+  /** the chat this file belongs to (title without the member count) */
+  chatTitle: string;
+  /** an earlier upload of the same chat already stored messages: this one only adds what is new */
+  knownChat: boolean;
+  /** messages an upload would store / skip as already stored (the usual fingerprint rule decides) */
+  newMessages: number;
+  duplicateMessages: number;
   totalMessages: number;
   firstSentAt: string | null;
   lastSentAt: string | null;
@@ -192,36 +205,54 @@ export type ExportPreview = {
    * One entry per KST day that has schedule-looking messages. Counts only — no message content.
    * toExtract: what an upload covering that day would actually queue (already-extracted ones excluded);
    * needsLlm: the part of toExtract the rules cannot settle alone, i.e. the external requests it would cost.
+   * important: the part of toExtract whose MESSAGE TEXT contains an important keyword — an estimate made before
+   *   extraction; the real importance is judged later on candidate titles only.
    */
-  days: { date: string; detected: number; toExtract: number; needsLlm: number }[];
+  days: { date: string; detected: number; toExtract: number; needsLlm: number; important: number }[];
+  /** how many important keywords are registered (0 = the estimate is not shown) */
+  importantKeywords: number;
 };
 
 /** Reads a file without storing anything, so the user can pick an extraction period knowing what it costs. */
-export async function previewKakaoExport(db: Db, file: { bytes: Uint8Array }): Promise<ExportPreview> {
+export async function previewKakaoExport(db: Db, file: { bytes: Uint8Array; filename?: string }): Promise<ExportPreview> {
   const decoded = await decodeExportFile(file.bytes);
   const parsed = parseKakaoExport(decoded.text);
   const fingerprints = computeFingerprints(parsed.messages);
   const known = messagesRepo(db).statusByFingerprint(fingerprints);
 
+  const keywords = importantKeywordsRepo(db).list();
   const days = new Map<string, ExportPreview["days"][number]>();
   parsed.messages.forEach((message, index) => {
     if (message.kind !== "TEXT" || !detectScheduleSignals(message.text).isCandidate) return;
     const date = message.sentAt.slice(0, 10);
-    const day = days.get(date) ?? { date, detected: 0, toExtract: 0, needsLlm: 0 };
+    const day = days.get(date) ?? { date, detected: 0, toExtract: 0, needsLlm: 0, important: 0 };
     days.set(date, day);
     day.detected += 1;
     const status = known.get(fingerprints[index]);
     if (status !== undefined && status !== "OUT_OF_RANGE") return; // settled (or queued) by an earlier upload
     day.toExtract += 1;
     if (extractByRules({ message, referenceTime: message.sentAt }).needsFallback) day.needsLlm += 1;
+    if (matchingKeywords(message.text, keywords).length > 0) day.important += 1;
   });
+
+  const source = { filename: file.filename ?? null, importRoomName: parsed.roomName, messageRoomName: null };
+  const key = sourceKeyOf(source);
+  const knownChat = importsRepo(db)
+    .listStoredSources()
+    .some((stored) => sourceKeyOf({ filename: stored.filename, importRoomName: stored.roomName, messageRoomName: null }) === key);
+  const duplicateMessages = fingerprints.filter((fingerprint) => known.has(fingerprint)).length;
 
   return {
     container: decoded.container,
     roomName: parsed.roomName,
+    chatTitle: chatTitleOf(source).title,
+    knownChat,
+    newMessages: parsed.messages.length - duplicateMessages,
+    duplicateMessages,
     totalMessages: parsed.messages.length,
     firstSentAt: parsed.messages[0]?.sentAt ?? null,
     lastSentAt: parsed.messages.at(-1)?.sentAt ?? null,
     days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    importantKeywords: keywords.length,
   };
 }

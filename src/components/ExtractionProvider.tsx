@@ -11,11 +11,14 @@ type BatchResult = {
   failed: number;
   remaining: number;
   candidatesCreated: number;
+  importantCreated: number;
   byExtractor: Record<string, number>;
   paused: null | PauseReason;
   unavailable: Unavailable | null;
   retryAfterMs: number | null;
   overall: OverallCounts;
+  llmRequests: number;
+  invalidJsonResponses: number;
 };
 
 type ExtractionState = {
@@ -35,7 +38,7 @@ type ExtractionState = {
   stop: () => void;
 };
 
-const EMPTY_RUN: RunTotals = { processed: 0, failed: 0, candidates: 0, byExtractor: {}, paused: null, unavailable: null };
+const EMPTY_RUN: RunTotals = { processed: 0, failed: 0, candidates: 0, important: 0, byExtractor: {}, llmRequests: 0, invalidJsonResponses: 0, paused: null, unavailable: null };
 const LOG_LINES = 50;
 /** Used when the provider's 429 carried no "retry in …" hint. */
 const DEFAULT_RETRY_MS = 60_000;
@@ -146,7 +149,10 @@ export function ExtractionProvider({ children }: { children: React.ReactNode }) 
             processed: previous.processed + batch.processed,
             failed: previous.failed + batch.failed,
             candidates: previous.candidates + batch.candidatesCreated,
+            important: previous.important + (batch.importantCreated ?? 0),
             byExtractor,
+            llmRequests: previous.llmRequests + batch.llmRequests,
+            invalidJsonResponses: previous.invalidJsonResponses + batch.invalidJsonResponses,
             paused: batch.paused,
             unavailable: batch.unavailable ?? null,
           };
@@ -157,7 +163,7 @@ export function ExtractionProvider({ children }: { children: React.ReactNode }) 
           setOverall(batch.overall);
           setLastUpdateAt(at);
           setLog((entries) =>
-            [{ at, processed: batch.processed, failed: batch.failed, candidates: batch.candidatesCreated, byExtractor: batch.byExtractor, paused: batch.paused }, ...entries].slice(0, LOG_LINES),
+            [{ at, processed: batch.processed, failed: batch.failed, candidates: batch.candidatesCreated, byExtractor: batch.byExtractor, llmRequests: batch.llmRequests, invalidJsonResponses: batch.invalidJsonResponses, paused: batch.paused }, ...entries].slice(0, LOG_LINES),
           );
           if (batch.paused || batch.remaining === 0 || batch.processed + batch.failed === 0 || stopRequested.current) break;
         }

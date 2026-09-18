@@ -1,6 +1,7 @@
 import type { Db } from "@/lib/db/client";
 import { calendarEventsRepo, type NewCalendarEvent } from "@/lib/db/repositories/calendar-events";
 import { candidatesRepo } from "@/lib/db/repositories/candidates";
+import type { ImportanceOverride } from "@/lib/importance/match";
 import type { CandidateStatus, ScheduleCandidate } from "@/lib/schedule/schemas";
 import type { DuplicateSplit } from "./duplicates";
 import { kindOfAction, normalizeTimes } from "./normalize";
@@ -15,8 +16,10 @@ import { kindOfAction, normalizeTimes } from "./normalize";
 
 export const UNTITLED = "(제목 없음)";
 
-export function eventFromCandidate(candidate: ScheduleCandidate): NewCalendarEvent {
+export function eventFromCandidate(candidate: ScheduleCandidate & { importanceOverride?: ImportanceOverride }): NewCalendarEvent {
   return {
+    // The manual importance decision travels with the schedule (so remove → re-approve keeps it).
+    importanceOverride: candidate.importanceOverride ?? null,
     candidateId: candidate.id,
     origin: "CANDIDATE",
     kind: kindOfAction(candidate.action),
@@ -39,6 +42,32 @@ export function applyCandidateStatus(db: Db, candidateId: string, status: Candid
     } else {
       events.deleteByCandidate(candidateId);
     }
+    return true;
+  })();
+}
+
+// Manual importance is ONE decision about one schedule: a candidate and the event derived from it always carry
+// the same override, changed together in one transaction from either side. (Automatic keyword matching is not
+// synced — each is judged on its own current title.)
+
+/** From the review page. Returns false when the candidate does not exist. */
+export function setCandidateImportanceOverride(db: Db, candidateId: string, value: ImportanceOverride): boolean {
+  return db.transaction(() => {
+    const now = new Date().toISOString();
+    if (!candidatesRepo(db).setImportanceOverride(candidateId, value, now)) return false;
+    calendarEventsRepo(db).setImportanceOverrideByCandidate(candidateId, value, now);
+    return true;
+  })();
+}
+
+/** From the calendar. An event without a candidate (a future manual event) only changes itself. */
+export function setCalendarEventImportanceOverride(db: Db, eventId: string, value: ImportanceOverride): boolean {
+  return db.transaction(() => {
+    const now = new Date().toISOString();
+    const events = calendarEventsRepo(db);
+    const event = events.findById(eventId);
+    if (!event || !events.setImportanceOverride(eventId, value, now)) return false;
+    if (event.candidateId) candidatesRepo(db).setImportanceOverride(event.candidateId, value, now);
     return true;
   })();
 }

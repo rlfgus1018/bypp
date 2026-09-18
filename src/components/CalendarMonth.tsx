@@ -44,6 +44,7 @@ export function CalendarMonth({
   selectedDay,
   selectedEventId,
   syncMarks,
+  importantIds = new Set<string>(),
   hrefFor,
 }: {
   grid: GridDay[][];
@@ -53,6 +54,8 @@ export function CalendarMonth({
   selectedEventId: string | null;
   /** event id → its Google state, from the local DB (one query for the whole page; Google is never asked) */
   syncMarks: ReadonlyMap<string, "created" | "failed">;
+  /** important events get a ★ and a stronger outline — a highlight only, nothing is hidden */
+  importantIds?: ReadonlySet<string>;
   /** builds a /calendar URL that keeps the current month */
   hrefFor: (params: { day?: string; event?: string }) => string;
 }) {
@@ -119,8 +122,13 @@ export function CalendarMonth({
                           title={`${chip.event.title} — ${formatEventWhen(chip.event)}`}
                           className={`block truncate rounded px-1 py-0.5 text-[11px] leading-tight ${chipStyle(chip.event)} ${
                             selectedEventId === chip.event.id ? "ring-1 ring-slate-900" : ""
-                          }`}
+                          } ${importantIds.has(chip.event.id) ? "border-l-2 border-amber-500 font-semibold" : ""}`}
                         >
+                          {importantIds.has(chip.event.id) && (
+                            <span className="mr-0.5 text-amber-600" title="중요 일정" aria-label="중요 일정">
+                              ★
+                            </span>
+                          )}
                           {syncMarks.get(chip.event.id) === "created" && (
                             <span className="mr-0.5 font-semibold text-emerald-700" title="Google 캘린더에 생성됨" aria-label="Google 캘린더에 생성됨">
                               G
