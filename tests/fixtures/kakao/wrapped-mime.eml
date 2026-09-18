@@ -1,0 +1,28 @@
+From: sender@example.com
+To: me@example.com
+Subject: export
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUND"
+
+--BOUND
+Content-Type: text/plain; charset=utf-8
+
+Attached.
+--BOUND
+Content-Type: text/plain; charset=utf-8; name="=?UTF-8?B?7Lm07Lm07Jik7YahIOuMgO2ZlC50eHQ=?="
+Content-Disposition: attachment; filename="=?UTF-8?B?7Lm07Lm07Jik7YahIOuMgO2ZlC50eHQ=?="
+Content-Transfer-Encoding: base64
+
+7YWM7Iqk7Yq4IO2VmeyDne2ajCDqs7Xsp4DrsKkgMTIg7Lm07Lm07Jik7YahIOuMgO2ZlArsoIDs
+nqXtlZwg64Kg7KecIDogMjAyNuuFhCA57JuUIDE47J28IOyYpO2bhCA3OjI1CgoKMjAyNuuFhCAz
+7JuUIDLsnbwg7Jik7KCEIDEyOjMwCjIwMjbrhYQgM+yblCAy7J28IOyYpOyghCAxMjozMCwg6rCA
+64KY64ukIDog7J6Q7KCVIOynge2bhCDrqZTsi5zsp4AKMjAyNuuFhCAz7JuUIDLsnbwg7Jik7KCE
+IDk6MDUsIOqwgOuCmOuLpCA6IOyViOuFle2VmOyEuOyalAoyMDI264WEIDPsm5QgMuydvCDsmKTt
+m4QgMTI6MDQsIO2Zjeq4uOuPmSA6IFsg7YWM7Iqk7Yq4IOqwhOuLtO2ajCDslYjrgrQgXQoKKu2W
+ieygleyLpCDsmpTssq3snLzroZwg6rO17Jyg7ZWp64uI64ukLgoK8J+TjCDsnbzsi5wgOiAyMDI2
+64WEIDPsm5QgMTDsnbwg7ZmU7JqU7J28IDEy7IucfjEz7IucCvCfk4wg7J6l7IaMIDog7YWM7Iqk
+7Yq46rSAIDEwMe2YuArwn5OMIOyEpOusuCDssLjsl6wg6riw7ZWcIDPsm5QgNeydvCAxM+yLnOq5
+jOyngOKtkAoK6rKM7Iuc66y8IOuLtOuLueyekDog7ZWZ7IOd7ZqM7J6lIO2Zjeq4uOuPmQoKMjAy
+NuuFhCAz7JuUIDPsnbwg7Jik7ZuEIDQ6MzkKMjAyNuuFhCAz7JuUIDPsnbwg7Jik7ZuEIDQ6Mzks
+IOq5gO2FjOyKpO2KuCA6IO2ZleyduO2WiOyKteuLiOuLpAo=
+--BOUND--

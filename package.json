@@ -1,0 +1,41 @@
+{
+  "name": "bypp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "inspect:export": "tsx scripts/inspect-export.ts",
+    "verify:pipeline": "tsx scripts/verify-pipeline.ts",
+    "repair:calendar": "tsx scripts/repair-calendar.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.23.0",
+    "@googleapis/calendar": "^20.0.0",
+    "better-sqlite3": "^13.0.3",
+    "google-auth-library": "^10.9.1",
+    "next": "16.3.5",
+    "postal-mime": "^3.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^24.13.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.13",
+    "typescript": "^5",
+    "vitest": "^5.0.1"
+  }
+}
