@@ -89,6 +89,11 @@ export function googleConnectionRepo(db: Db) {
       ).run(reason, now);
     },
 
+    /** Forgets the account and its tokens. Send history (calendar_syncs) is not touched. */
+    delete(): boolean {
+      return db.prepare("DELETE FROM google_connections WHERE id = 'default'").run().changes === 1;
+    },
+
     // ── one-time OAuth state ─────────────────────────────────────────────
     addState(stateHash: string, expiresAt: string, now: string): void {
       db.prepare("DELETE FROM oauth_states WHERE expires_at <= ?").run(now);

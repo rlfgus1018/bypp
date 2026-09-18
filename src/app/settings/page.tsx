@@ -8,7 +8,7 @@ import { getConnectionView } from "@/lib/google/connection";
 import { isGoogleConfigured } from "@/lib/google/runtime";
 import { KEYWORD_MAX_LENGTH, KEYWORD_MIN_LENGTH, MAX_KEYWORDS } from "@/lib/importance/keywords";
 import { describeLlm, resolveLlmConfig } from "@/lib/schedule/factory";
-import { deleteChat, removeImportantKeyword } from "./actions";
+import { checkGoogleConnection, deleteChat, disconnectGoogleAccount, removeImportantKeyword } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,22 @@ const CHAT_ERROR: Record<string, string> = {
   "sync-in-progress": "이 채팅방의 일정 하나가 지금 Google로 전송되는 중이라 아무것도 삭제하지 않았습니다. 잠시 후 다시 시도해 주세요.",
   "unknown-chat": "그 채팅방의 데이터를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
   invalid: "요청이 올바르지 않아 아무것도 삭제하지 않았습니다.",
+};
+
+// Result codes ./actions.ts may put in ?google=. Anything else is ignored.
+const GOOGLE_FLASH: Record<string, { ok: boolean; text: string }> = {
+  check_ok: { ok: true, text: "Google에 확인했습니다: 연결이 유효합니다." },
+  check_revoked: { ok: false, text: "Google에서 이 앱의 권한이 해제되었거나 만료되었습니다. 상태를 “재연결 필요”로 바꿨습니다." },
+  check_network: { ok: false, text: "Google에 연결하지 못해 확인하지 못했습니다. 연결 상태는 바꾸지 않았습니다." },
+  check_none: { ok: false, text: "연결된 Google 계정이 없습니다." },
+  disconnected: { ok: true, text: "연결을 해제했습니다. Google의 앱 권한을 취소하고, 이 컴퓨터에 저장된 토큰을 지웠습니다. 이미 만든 Google 일정은 그대로입니다." },
+  "disconnected-local-only": {
+    ok: false,
+    text: "이 컴퓨터에 저장된 토큰은 지웠지만, Google 쪽 권한 취소는 확인하지 못했습니다. Google 계정 → 보안 → 서드 파티 앱 액세스에서 직접 삭제해 주세요.",
+  },
+  "not-connected": { ok: false, text: "연결된 Google 계정이 없습니다." },
+  disconnect_failed: { ok: false, text: "연결 해제 중 오류가 발생했습니다. 다시 시도해 주세요." },
+  not_configured: { ok: false, text: "Google 연동 환경변수가 설정되지 않았습니다." },
 };
 
 const TABLE = "grid grid-cols-[minmax(0,1fr)_repeat(3,64px)_84px] items-center gap-2.5 sm:grid-cols-[minmax(0,1fr)_repeat(3,80px)_110px]";
@@ -33,8 +49,25 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const overrides = repo.overrideCounts();
   const reach = new Map(keywords.map((keyword) => [keyword.id, repo.preview(keyword.keyword)]));
   const connection = getConnectionView(db, isGoogleConfigured());
+  const googleFlash = typeof params.google === "string" ? GOOGLE_FLASH[params.google] : undefined;
   // Only the provider / model / limits reach the page — never the key.
   const llm = resolveLlmConfig();
+
+  const disconnect = (
+    <details className="group">
+      <summary className="cursor-pointer list-none rounded border border-red-300 px-3 py-2 text-center text-[13px] text-red-700 hover:bg-red-50 group-open:bg-red-50 [&::-webkit-details-marker]:hidden">
+        연결 해제…
+      </summary>
+      <div className="mt-2 flex flex-col gap-2 rounded border border-red-200 bg-red-50 p-3 text-[12.5px] leading-relaxed text-red-900">
+        <p>Google에서 이 앱의 권한을 취소하고, 이 컴퓨터에 저장된 계정 정보와 토큰을 지웁니다. 이미 Google에 만든 일정과 전송 기록은 그대로 남습니다.</p>
+        <form action={disconnectGoogleAccount}>
+          <button type="submit" className="rounded bg-red-700 px-3.5 py-2 text-[13px] font-medium text-white hover:bg-red-600">
+            연결 해제 확인
+          </button>
+        </form>
+      </div>
+    </details>
+  );
 
   return (
     <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -178,6 +211,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <aside className="flex flex-col gap-3.5" aria-label="연결과 추출 방식">
         <section className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-white p-[18px] text-sm" aria-label="Google 연결">
           <h2 className="text-[15px] font-semibold">Google 연결</h2>
+          {googleFlash && (
+            <p className={`rounded border p-2 text-[12.5px] leading-relaxed ${googleFlash.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`} role="status">
+              {googleFlash.text}
+            </p>
+          )}
           {connection.state === "connected" ? (
             <>
               <p className="flex flex-wrap items-center gap-2">
@@ -187,14 +225,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <p className="text-[12.5px] leading-relaxed text-ink-600">
                 기본 캘린더에 생성합니다. 생성한 일정은 같은 계정을 쓰는 휴대폰 기본 캘린더 앱에도 나타납니다. 연결만으로는 아무것도 보내지 않습니다.
               </p>
-              <a
-                href="https://myaccount.google.com/permissions"
-                target="_blank"
-                rel="noreferrer"
-                className="rounded border border-slate-300 px-3 py-2 text-center text-[13px] text-slate-700 hover:bg-slate-50"
-              >
-                연결 해제 (Google 계정 설정) ↗
-              </a>
+              <p className="text-[11.5px] leading-relaxed text-ink-500">
+                이 표시는 이 앱에 저장된 기록입니다. Google 계정에서 직접 권한을 지웠다면 &ldquo;연결 상태 확인&rdquo;을 눌러야 반영됩니다.
+              </p>
+              <form action={checkGoogleConnection}>
+                <button type="submit" className="w-full rounded border border-slate-300 px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50">
+                  연결 상태 확인
+                </button>
+              </form>
+              {disconnect}
             </>
           ) : connection.state === "not-configured" ? (
             <p className="text-[12.5px] leading-relaxed text-ink-600">
@@ -213,6 +252,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <a href="/api/auth/google" className="rounded bg-slate-900 px-3 py-2 text-center text-[13px] font-medium text-white hover:bg-slate-700">
                 {connection.state === "needs-reconnect" ? "Google 다시 연결" : "Google 연결"}
               </a>
+              {connection.state === "needs-reconnect" && disconnect}
             </>
           )}
         </section>

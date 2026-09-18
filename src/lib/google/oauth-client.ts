@@ -22,6 +22,8 @@ export interface GoogleOAuthClient {
   /** Verifies the ID token (signature, audience, expiry) and returns the account's stable subject. */
   verifyIdentity(idToken: string): Promise<GoogleIdentity>;
   refresh(refreshToken: string): Promise<RefreshedToken>;
+  /** Tells Google to drop the grant behind this token. Throws GoogleAuthError when that could not be confirmed. */
+  revoke(token: string): Promise<void>;
 }
 
 /**

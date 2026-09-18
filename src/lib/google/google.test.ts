@@ -18,7 +18,7 @@ import { HeuristicExtractor } from "@/lib/schedule/heuristic-extractor";
 import { HybridExtractor } from "@/lib/schedule/hybrid-extractor";
 import { GoogleApiError, type GoogleApiErrorKind, type GoogleCalendarApi, type RemoteEvent } from "./calendar-api";
 import { CALENDAR_SCOPE, readGoogleConfig, readTokenKey } from "./config";
-import { beginConnection, completeConnection, getConnectionView, STATE_TTL_SECONDS } from "./connection";
+import { beginConnection, completeConnection, disconnectGoogle, getConnectionView, STATE_TTL_SECONDS } from "./connection";
 import { DEFAULT_GOOGLE_EVENT_DURATION_MINUTES, googleEventIdFor, hashBody, toGoogleEvent, type GoogleEventBody } from "./event-mapper";
 import { RealGoogleOAuthClient } from "./google-oauth-client";
 import { GoogleAuthError, type GoogleAuthErrorCode, type GoogleOAuthClient, type RefreshedToken, type TokenSet } from "./oauth-client";
@@ -66,6 +66,12 @@ class FakeOAuth implements GoogleOAuthClient {
   }
   async verifyIdentity() {
     return this.identity;
+  }
+  revoked: string[] = [];
+  revokeError: GoogleAuthErrorCode | null = null;
+  async revoke(token: string) {
+    if (this.revokeError) throw new GoogleAuthError(this.revokeError);
+    this.revoked.push(token);
   }
   async refresh(refreshToken: string) {
     this.refreshes.push(refreshToken);
@@ -329,6 +335,41 @@ describe("token storage and refresh", () => {
     expect(open(seal("x", key), Buffer.alloc(32, 9))).toBeNull(); // wrong key
     expect(await getAccessToken(db, oauth, { nowMs: T0 + 4000_000, tokenKey: null })).toEqual({ ok: false, reason: "needs-reconnect" });
     expect(getConnectionView(db, true)).toMatchObject({ reason: "token_unreadable" });
+  });
+});
+
+describe("checking and disconnecting", () => {
+  it("a grant removed at Google is only noticed when asked: a forced refresh turns CONNECTED into needs-reconnect", async () => {
+    await connect();
+    expect(getConnectionView(db, true).state).toBe("connected"); // the local view cannot know yet
+    oauth.refreshResult = "invalid_grant";
+    expect(await getAccessToken(db, oauth, { nowMs: clock, tokenKey: null, forceRefresh: true })).toEqual({ ok: false, reason: "needs-reconnect" });
+    expect(getConnectionView(db, true)).toMatchObject({ state: "needs-reconnect", reason: "revoked" });
+  });
+
+  it("disconnect revokes the grant at Google, forgets the tokens, and keeps events and send history", async () => {
+    await connect();
+    const event = addEvent();
+    await createGoogleEvent(deps(), event.id);
+
+    expect(await disconnectGoogle(db, oauth, { tokenKey: null })).toBe("disconnected");
+    expect(oauth.revoked).toEqual([SECRETS.refresh]);
+    expect(getConnectionView(db, true)).toEqual({ state: "not-connected" });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM google_connections").get()).toEqual({ n: 0 });
+    expect(calendarSyncsRepo(db).find(event.id)?.status).toBe("SYNCED");
+    expect(api.remote.size).toBe(1);
+    expect(await disconnectGoogle(db, oauth, { tokenKey: null })).toBe("not-connected");
+  });
+
+  it("still forgets the tokens locally when Google cannot be reached, and says so", async () => {
+    await connect();
+    oauth.revokeError = "network";
+    expect(await disconnectGoogle(db, oauth, { tokenKey: null })).toBe("disconnected-local-only");
+    expect(getConnectionView(db, true)).toEqual({ state: "not-connected" });
+
+    await connect();
+    oauth.revokeError = "invalid_grant"; // already gone at Google: that counts as revoked
+    expect(await disconnectGoogle(db, oauth, { tokenKey: null })).toBe("disconnected");
   });
 });
 

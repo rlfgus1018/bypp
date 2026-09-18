@@ -70,6 +70,16 @@ export class RealGoogleOAuthClient implements GoogleOAuthClient {
     }
   }
 
+  async revoke(token: string): Promise<void> {
+    try {
+      await this.client().revokeToken(token);
+    } catch (error) {
+      // 400 invalid_token: Google no longer knows this token — the grant is already gone, which is the goal.
+      if ((error as { response?: { status?: number } } | null)?.response?.status === 400) return;
+      throw toAuthError(error);
+    }
+  }
+
   async refresh(refreshToken: string): Promise<RefreshedToken> {
     try {
       const client = this.client();

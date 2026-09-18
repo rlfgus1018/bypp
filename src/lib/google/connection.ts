@@ -35,6 +35,34 @@ export function getConnectionView(db: Db, configured: boolean): ConnectionView {
   return { state: "needs-reconnect", email: row.accountEmail, reason };
 }
 
+export type DisconnectResult = "disconnected" | "disconnected-local-only" | "not-connected";
+
+/**
+ * Disconnects: asks Google to revoke the grant (best effort), then forgets the account and its tokens locally.
+ * The local part always happens — if Google cannot be reached the tokens are still gone from this machine, and
+ * the result says the grant may remain at Google (the user can remove it in their Google account).
+ * Events already created on Google and the local send history are left alone.
+ */
+export async function disconnectGoogle(db: Db, oauth: GoogleOAuthClient, options: { tokenKey: Buffer | null }): Promise<DisconnectResult> {
+  const repo = googleConnectionRepo(db);
+  const row = repo.get();
+  if (!row) return "not-connected";
+  // Revoking the refresh token drops the whole grant; an access token alone would also do.
+  const token = open(row.refreshToken, options.tokenKey) ?? open(row.accessToken, options.tokenKey);
+  let revoked = false;
+  if (token) {
+    try {
+      await oauth.revoke(token);
+      revoked = true;
+    } catch (error) {
+      // invalid_grant / a 400: the grant is already gone at Google — that is what we wanted.
+      revoked = error instanceof GoogleAuthError && error.code === "invalid_grant";
+    }
+  }
+  repo.delete();
+  return revoked ? "disconnected" : "disconnected-local-only";
+}
+
 /** Step 1: a one-time state (random, 256 bit) recorded server-side as a hash, plus the URL to send the browser to. */
 export function beginConnection(db: Db, oauth: GoogleOAuthClient, nowMs: number): { url: string; state: string } {
   const repo = googleConnectionRepo(db);

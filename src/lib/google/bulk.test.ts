@@ -26,6 +26,7 @@ const oauth: GoogleOAuthClient = {
   buildAuthUrl: ({ state }) => `https://accounts.example/auth?state=${state}`,
   exchangeCode: async () => ({ accessToken: SECRETS.access, refreshToken: SECRETS.refresh, expiresAt: new Date(T0 + 3600_000).toISOString(), scope: `openid email ${CALENDAR_SCOPE}`, idToken: SECRETS.idToken }),
   verifyIdentity: async () => ({ sub: "sub-alice", email: "alice@example.com" }),
+  revoke: async () => undefined,
   refresh: async () => ({ accessToken: SECRETS.access, expiresAt: new Date(T0 + 7200_000).toISOString(), refreshToken: null, scope: `openid email ${CALENDAR_SCOPE}` }),
 };
 

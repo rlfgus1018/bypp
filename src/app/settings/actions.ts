@@ -6,6 +6,9 @@ import { z } from "zod";
 import { SOURCE_KEY_PATTERN } from "@/lib/candidates/source-group";
 import { deleteChatData } from "@/lib/data/chat-data";
 import { getDb } from "@/lib/db/client";
+import { disconnectGoogle } from "@/lib/google/connection";
+import { getGoogleRuntime } from "@/lib/google/runtime";
+import { getAccessToken } from "@/lib/google/token-service";
 import { importantKeywordsRepo } from "@/lib/db/repositories/important-keywords";
 import type { KeywordPreview } from "@/lib/importance/keywords";
 
@@ -55,4 +58,38 @@ export async function deleteChat(formData: FormData) {
   if (!result.ok) redirect(`/settings?chatError=${result.reason}`);
   const { messages, candidates, events } = result.deleted;
   redirect(`/settings?chatDeleted=${messages}.${candidates}.${events}`);
+}
+
+const GOOGLE_PATHS = ["/settings", "/calendar", "/calendar/google", "/upload"];
+
+// The pages only ever read the LOCAL connection record, so a grant removed in the Google account goes unnoticed
+// until a send fails. This asks Google now (one forced token refresh — no calendar request, nothing is sent).
+export async function checkGoogleConnection() {
+  const google = getGoogleRuntime();
+  if (!google) redirect("/settings?google=not_configured");
+  let result: string;
+  try {
+    const token = await getAccessToken(getDb(), google.oauth, { nowMs: Date.now(), tokenKey: google.tokenKey, forceRefresh: true });
+    result = token.ok ? "check_ok" : token.reason === "network" ? "check_network" : token.reason === "not-connected" ? "check_none" : "check_revoked";
+  } catch {
+    // Not logging the error object: errors on this path can carry tokens.
+    result = "check_network";
+  }
+  for (const path of GOOGLE_PATHS) revalidatePath(path);
+  redirect(`/settings?google=${result}`);
+}
+
+// Revokes the grant at Google (best effort) and forgets the account and tokens here. Events already created on
+// Google and the local send history stay.
+export async function disconnectGoogleAccount() {
+  const google = getGoogleRuntime();
+  if (!google) redirect("/settings?google=not_configured");
+  let result: string;
+  try {
+    result = await disconnectGoogle(getDb(), google.oauth, { tokenKey: google.tokenKey });
+  } catch {
+    result = "disconnect_failed";
+  }
+  for (const path of GOOGLE_PATHS) revalidatePath(path);
+  redirect(`/settings?google=${result}`);
 }
