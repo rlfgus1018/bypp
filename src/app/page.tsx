@@ -237,6 +237,12 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-white">
               자주 묻는 질문
             </a>
+            <Link href="/privacy" className="hover:text-white">
+              개인정보처리방침
+            </Link>
+            <Link href="/terms" className="hover:text-white">
+              이용약관
+            </Link>
             <Link href="/upload" className="hover:text-white">
               앱으로 →
             </Link>
