@@ -98,7 +98,9 @@ export function CalendarEventPanel({
           </Link>
         </details>
       ) : (
-        <p className="mt-3 text-xs text-slate-500">원본 후보가 없습니다(삭제되었거나 후보에서 만들어지지 않은 일정).</p>
+        <p className="mt-3 text-xs text-slate-500">
+          {event.origin === "MANUAL" ? "캘린더에서 직접 추가한 일정입니다." : "원본 후보가 없습니다(후보가 삭제된 일정)."}
+        </p>
       )}
 
       <details className="mt-3" open={false}>

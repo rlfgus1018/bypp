@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarEventForm } from "@/components/CalendarEventForm";
 import { CalendarEventPanel } from "@/components/CalendarEventPanel";
 import { CalendarMonth, chipStyle, kindLabel } from "@/components/CalendarMonth";
 import { CalendarSourceFilter } from "@/components/CalendarSourceFilter";
@@ -123,7 +124,30 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             오늘
           </Link>
           <span className="ml-auto text-slate-500">이번 달 일정 {view.monthCount.toLocaleString()}건</span>
+          <Link
+            href={calendarHref(context, { day: selectedDayKey ?? undefined, extra: { new: "1" } })}
+            className="rounded bg-slate-900 px-3 py-1.5 font-medium text-white"
+          >
+            + 새 일정
+          </Link>
         </div>
+      )}
+
+      {one("new") === "1" && (
+        <section className="rounded-lg border border-slate-300 bg-white p-4 text-sm" aria-label="새 일정">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">새 일정 직접 추가</h2>
+            <Link href={hrefFor({ day: selectedDayKey ?? undefined })} className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-600">
+              닫기
+            </Link>
+          </div>
+          <div className="mt-2">
+            <CalendarEventForm
+              returnFields={contextFields(context)}
+              initial={{ title: "", location: "", allDay: false, startDate: selectedDayKey ?? "", startTime: "", endDate: "", endTime: "", category: "EVENT" }}
+            />
+          </div>
+        </section>
       )}
 
       <GoogleConnectionCard

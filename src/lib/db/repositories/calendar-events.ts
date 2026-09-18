@@ -193,11 +193,23 @@ export function calendarEventsRepo(db: Db) {
         .prepare(
           `UPDATE calendar_events
            SET title = @title, start_at = @startAt, end_at = @endAt, all_day = @allDay, location = @location,
-               edited_at = @now, updated_at = @now
+               category = COALESCE(@category, category), edited_at = @now, updated_at = @now
            WHERE id = @id`,
         )
-        .run({ ...changes, id, allDay: changes.allDay ? 1 : 0, now });
+        .run({ ...changes, category: changes.category ?? null, id, allDay: changes.allDay ? 1 : 0, now });
       return result.changes === 1;
+    },
+
+    /** An event made on the calendar itself: no candidate, origin MANUAL, a plain EVENT. Returns its id. */
+    createManual(fields: CalendarEventChanges & { category: ScheduleCategory }): string {
+      const id = randomUUID();
+      const now = new Date().toISOString();
+      db.prepare(
+        `INSERT INTO calendar_events
+           (id, candidate_id, origin, kind, title, start_at, end_at, all_day, location, category, created_at, updated_at)
+         VALUES (@id, NULL, 'MANUAL', 'EVENT', @title, @startAt, @endAt, @allDay, @location, @category, @now, @now)`,
+      ).run({ id, title: fields.title, startAt: fields.startAt, endAt: fields.endAt, allDay: fields.allDay ? 1 : 0, location: fields.location, category: fields.category, now });
+      return id;
     },
 
     /** Other events in the same slot (same start + category): the cheap signal for a repeated notice. */

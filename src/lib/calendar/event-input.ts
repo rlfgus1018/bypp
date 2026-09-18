@@ -1,4 +1,5 @@
 import { addDays, parseIsoToKst, toIsoKst, type KstDate, type KstTime } from "@/lib/schedule/kst";
+import { ScheduleCategorySchema, type ScheduleCategory } from "@/lib/schedule/schemas";
 import { parseDay } from "./month-grid";
 import { occupiedDays } from "./normalize";
 import type { CalendarEventChanges, EventTimeFields } from "./types";
@@ -14,7 +15,12 @@ export type EventFormValues = {
   startTime: string; // HH:mm
   endDate: string; // for all-day: the LAST day, inclusive
   endTime: string;
+  /** one of ScheduleCategory; omitted = keep the event's category */
+  category?: string;
 };
+
+/** Form labels for the categories, in the order the select shows them. */
+export const CATEGORY_LABELS: Record<ScheduleCategory, string> = { EVENT: "행사", MEETING: "회의", DEADLINE: "마감", PERIOD: "기간", UNKNOWN: "기타" };
 
 export type EventInputResult = { ok: true; changes: CalendarEventChanges } | { ok: false; errors: string[] };
 
@@ -27,8 +33,17 @@ function parseTime(value: string): KstTime | null {
   return match ? { hh: Number(match[1]), mm: Number(match[2]) } : null;
 }
 
-export function toFormValues(event: EventTimeFields & { title: string; location: string | null }): EventFormValues {
-  const base = { title: event.title, location: event.location ?? "", allDay: event.allDay, startDate: "", startTime: "", endDate: "", endTime: "" };
+export function toFormValues(event: EventTimeFields & { title: string; location: string | null; category?: ScheduleCategory }): EventFormValues {
+  const base = {
+    title: event.title,
+    location: event.location ?? "",
+    allDay: event.allDay,
+    startDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
+    ...(event.category ? { category: event.category } : {}),
+  };
   if (!event.startAt) return base;
   const start = parseIsoToKst(event.startAt);
   if (event.allDay) {
@@ -55,6 +70,7 @@ export function readEventForm(form: FormData): EventFormValues {
     startTime: text("startTime"),
     endDate: text("endDate"),
     endTime: text("endTime"),
+    ...(form.get("category") !== null ? { category: text("category") } : {}),
   };
 }
 
@@ -62,7 +78,9 @@ export function parseEventInput(values: EventFormValues): EventInputResult {
   const errors: string[] = [];
   if (values.title.length < 1 || values.title.length > 200) errors.push("제목은 1~200자로 입력해 주세요.");
   if (values.location.length > 200) errors.push("장소는 200자 이내로 입력해 주세요.");
-  const common = { title: values.title, location: values.location || null };
+  const category = values.category === undefined ? undefined : ScheduleCategorySchema.safeParse(values.category);
+  if (category && !category.success) errors.push("분류가 올바르지 않습니다.");
+  const common = { title: values.title, location: values.location || null, ...(category?.success ? { category: category.data } : {}) };
   const fail = (): EventInputResult => ({ ok: false, errors });
 
   // No start date = "date unknown": the event stays in the undated list.

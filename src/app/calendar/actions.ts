@@ -33,6 +33,17 @@ export async function updateCalendarEvent(_previous: EventFormState, formData: F
   redirect(calendarHref(context, { month: parsed.changes.startAt?.slice(0, 7) ?? context.month, event: id }));
 }
 
+// An event made directly on the calendar (no candidate, no chat): it shows under the "직접 추가" source.
+export async function createCalendarEvent(_previous: EventFormState, formData: FormData): Promise<EventFormState> {
+  const parsed = parseEventInput(readEventForm(formData));
+  if (!parsed.ok) return { errors: parsed.errors };
+  const id = calendarEventsRepo(getDb()).createManual({ ...parsed.changes, category: parsed.changes.category ?? "EVENT" });
+
+  revalidatePath("/calendar");
+  const context = readCalendarContext(formData);
+  redirect(calendarHref(context, { month: parsed.changes.startAt?.slice(0, 7) ?? context.month, event: id }));
+}
+
 // A derived event takes its candidate to IGNORED in the same transaction (undoable from the review page).
 export async function removeCalendarEvent(formData: FormData) {
   const id = Id.parse(formData.get("id"));

@@ -46,8 +46,8 @@ export type NewCalendarEvent = EventTimeFields & {
   importanceOverride?: ImportanceOverride;
 };
 
-/** What the user can change from the calendar. */
-export type CalendarEventChanges = EventTimeFields & { title: string; location: string | null };
+/** What the user can change from the calendar. `category` omitted = left as it is. */
+export type CalendarEventChanges = EventTimeFields & { title: string; location: string | null; category?: ScheduleCategory };
 
 /** What the detail panel needs: the event, plus the extraction record and message it came from (if any). */
 export type CalendarEventWithSource = CalendarEvent & {
