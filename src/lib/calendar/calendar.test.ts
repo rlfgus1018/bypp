@@ -18,6 +18,7 @@ import { parseEventInput, toFormValues, type EventFormValues } from "./event-inp
 import { loadCalendarMonth } from "./load-month";
 import { buildMonthGrid, dayKey, gridRange, parseDay, parseMonth, placeEvents, shiftMonth, spanDays } from "./month-grid";
 import { canonicalIso, normalizeTimes, occupiedDays } from "./normalize";
+import { groupPartnerships, isPartnership, partnershipPhase } from "./partnership";
 import type { CalendarEvent } from "./types";
 
 const kst = (day: string, time = "00:00") => `${day}T${time}:00+09:00`;
@@ -106,6 +107,7 @@ describe("month grid", () => {
     location: null,
     category: "EVENT",
     editedAt: null,
+    importanceOverride: null,
     createdAt: "",
     updatedAt: "",
   });
@@ -404,6 +406,54 @@ describe("repair tool and migration", () => {
     expect(fk.rule).toBe("SET NULL");
     expect((raw.pragma("table_info(calendar_events)") as { name: string }[]).map((c) => c.name).join(",")).not.toMatch(/provider|external|sync|google/);
     raw.close();
+  });
+});
+
+describe("partnerships have a tab of their own", () => {
+  const add = (title: string, startAt: string | null, endAt: string | null, allDay = true, category: "PERIOD" | "EVENT" | "DEADLINE" = "PERIOD") =>
+    calendarEventsRepo(db).insert({ candidateId: null, origin: "MANUAL", kind: "EVENT", title, startAt, endAt, allDay, location: null, category });
+  const byTitle = (events: CalendarEvent[]) => events.map((event) => event.title).sort();
+
+  it("only long events with 제휴 in the title count as partnerships", () => {
+    add("고려대학교 정보대학 X 비테라스 제휴 안내 (기간)", kst("2026-01-07"), kst("2027-01-01"));
+    add("제휴 협약식", kst("2026-09-02", "15:00"), kst("2026-09-02", "16:00"), false, "EVENT"); // one day: a real schedule
+    add("제휴 업체 신청 마감", kst("2026-09-05"), kst("2026-09-06"), true, "DEADLINE");
+    add("제휴 주간", kst("2026-09-01"), kst("2026-09-08"), true); // exactly 7 days: not "long"
+    add("재학생 구글메일 전환기간", kst("2026-08-26"), kst("2027-03-01")); // long, but not a partnership
+    const all = calendarEventsRepo(db).listAll();
+    expect(byTitle(all.filter(isPartnership))).toEqual(["고려대학교 정보대학 X 비테라스 제휴 안내 (기간)"]);
+  });
+
+  it("the grid, the day list and the month count leave partnerships out; the tab lists all of them", () => {
+    add("A 제휴 안내", kst("2026-01-01"), kst("2027-01-01"));
+    add("B 제휴 안내", kst("2026-09-15"), kst("2026-12-01"));
+    add("C 제휴 안내 (예정)", kst("2026-11-01"), kst("2027-06-01"));
+    add("D 제휴 안내 (종료)", kst("2025-03-01"), kst("2025-12-01"));
+    add("좌석 배정 신청", kst("2026-09-02", "09:00"), kst("2026-09-02", "18:00"), false, "DEADLINE");
+    add("구글메일 전환기간", kst("2026-08-26"), kst("2027-03-01"));
+
+    const before = (db.prepare("SELECT total_changes() AS n").get() as { n: number }).n;
+    const view = loadCalendarMonth(db, { y: 2026, m: 9 }, { day: { y: 2026, m: 9, d: 20 } });
+    expect((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n).toBe(before); // still read-only
+
+    const onGrid = new Set([...view.placed.chipsByDay.values()].flat().map((chip) => chip.event.title));
+    expect([...onGrid].some((title) => title.includes("제휴"))).toBe(false);
+    expect(byTitle(view.placed.longEvents)).toEqual(["구글메일 전환기간"]); // other long periods keep their strip
+    expect(view.monthCount).toBe(2);
+    expect(byTitle(view.dayEvents!)).toEqual(["구글메일 전환기간"]);
+    expect(view.dayPartnershipCount).toBe(2); // A and B run on 9/20
+    expect(byTitle(view.partnerships)).toEqual(["A 제휴 안내", "B 제휴 안내", "C 제휴 안내 (예정)", "D 제휴 안내 (종료)"]);
+
+    const groups = groupPartnerships(view.partnerships, { y: 2026, m: 9, d: 20 });
+    expect(groups.active.map((row) => [row.event.title, row.daysLeft])).toEqual([
+      ["B 제휴 안내", 72], // ends first → listed first; 9/20 … 11/30 inclusive
+      ["A 제휴 안내", 103],
+    ]);
+    expect(groups.upcoming.map((row) => row.event.title)).toEqual(["C 제휴 안내 (예정)"]);
+    expect(groups.ended.map((row) => row.event.title)).toEqual(["D 제휴 안내 (종료)"]);
+    // the last day counts as "1 day left"; the day after, it has ended
+    expect(partnershipPhase(view.partnerships.find((e) => e.title === "B 제휴 안내")!, { y: 2026, m: 11, d: 30 })).toEqual({ phase: "active", daysLeft: 1 });
+    expect(partnershipPhase(view.partnerships.find((e) => e.title === "B 제휴 안내")!, { y: 2026, m: 12, d: 1 }).phase).toBe("ended");
   });
 });
 
