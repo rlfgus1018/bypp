@@ -98,6 +98,18 @@ describe("OpenRouterLlmClient", () => {
     });
     expect(malformedApi).toHaveBeenCalledOnce();
 
+    // A slow model: 200 arrived, then the time limit ran out while the body was being read. Not a JSON error.
+    const slow = new Response("{}", { status: 200 });
+    vi.spyOn(slow, "json").mockRejectedValue(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(slow));
+    await expect(new OpenRouterLlmClient("secret-key", "model").generateJson(request)).rejects.toMatchObject({ kind: "network", detail: "HTTP 200 / TimeoutError" });
+
+    // The connection dropped mid-body: also a network pause, never a JSON error.
+    const dropped = new Response("{}", { status: 200 });
+    vi.spyOn(dropped, "json").mockRejectedValue(new TypeError("terminated"));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(dropped));
+    await expect(new OpenRouterLlmClient("secret-key", "model").generateJson(request)).rejects.toMatchObject({ kind: "network", detail: "HTTP 200 / TypeError" });
+
     const malformedModel = vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: '{"candidates":[],}' } }] }), { status: 200 }));
     vi.stubGlobal("fetch", malformedModel);
     await expect(new OpenRouterLlmClient("secret-key", "model").generateJson(request)).rejects.toThrow("OpenRouter output error: invalid_json");

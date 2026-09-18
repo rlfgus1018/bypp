@@ -14,7 +14,13 @@ if (typeof window !== "undefined") {
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const REQUEST_TIMEOUT_MS = 30_000;
+/**
+ * One limit for the whole exchange, body included. OpenRouter answers a non-streamed request with HTTP 200
+ * right away and keeps the connection open until the model is done, so a slow model shows up as a timeout
+ * WHILE READING THE BODY, not as a late status. Generous on purpose: under concurrent load a single answer can
+ * take well over 30 s, and each timeout pauses the whole batch.
+ */
+export const REQUEST_TIMEOUT_MS = 90_000;
 
 type OpenRouterResponse = {
   choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
@@ -119,10 +125,14 @@ export class OpenRouterLlmClient implements LlmClient {
     let data: OpenRouterResponse;
     try {
       data = (await response.json()) as OpenRouterResponse;
-    } catch {
-      // The model output lives inside the API envelope. If the envelope itself is malformed there is no
-      // message-specific answer to validate, so pause the batch and retry later instead of failing the message.
-      throw new LlmUnavailableError("server", "HTTP 200 / invalid_json");
+    } catch (error) {
+      // Either way no message-specific answer arrived, so the batch pauses and retries later; the message is not
+      // failed. What went wrong decides the wording (and whether it counts as a malformed-JSON response):
+      //   TimeoutError / AbortError — the model took longer than REQUEST_TIMEOUT_MS (200 had already been sent)
+      //   SyntaxError               — the API envelope itself is not JSON
+      //   anything else             — the connection broke while the body was arriving
+      if (error instanceof SyntaxError) throw new LlmUnavailableError("server", "HTTP 200 / invalid_json");
+      throw new LlmUnavailableError("network", `HTTP 200 / ${safeNetworkDetail(error)}`);
     }
 
     const output = responseText(data);

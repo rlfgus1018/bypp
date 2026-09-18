@@ -16,6 +16,11 @@ export function describeUnavailable(unavailable: Unavailable | null): string {
   if (/EACCES|EPERM/.test(unavailable.detail)) {
     return `이 서버 프로세스의 외부 네트워크 연결이 차단되어 있습니다(샌드박스·방화벽). dev 서버를 샌드박스가 아닌 본인 터미널에서 다시 실행해 주세요(npm run dev).${tail}`;
   }
+  // TimeoutError / AbortError: no answer within the request time limit (often while the provider is busy).
+  if (/Timeout|Abort/.test(unavailable.detail)) {
+    return `LLM 응답이 제한 시간 안에 오지 않아 일시 중단했습니다(공급자가 붐비는 중일 수 있음). 잠시 후 자동으로 다시 시도합니다. 자주 반복되면 .env.local의 LLM_CONCURRENCY를 낮춰 보세요.${tail}`;
+  }
+  if (/invalid_json/.test(unavailable.detail)) return `LLM 공급자가 형식이 잘못된 응답을 보내 일시 중단했습니다. 잠시 후 자동으로 다시 시도합니다.${tail}`;
   if (unavailable.kind === "server") return `LLM 공급자 서버 오류(5xx)로 일시 중단했습니다. 잠시 후 자동으로 다시 시도합니다.${tail}`;
   return `LLM API에 연결하지 못했습니다(네트워크). 잠시 후 자동으로 다시 시도합니다.${tail}`;
 }
