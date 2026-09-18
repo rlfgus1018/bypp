@@ -37,16 +37,14 @@ export function ImportanceButtons({
   id: string;
   reason: ImportanceReason;
   action: (formData: FormData) => void | Promise<void>;
-  /** hidden fields the action needs besides id / importance (e.g. the calendar month to return to) */
-  extraFields?: Record<string, string>;
+  /** hidden fields the action needs besides id / importance (e.g. the calendar view to return to); arrays repeat */
+  extraFields?: Record<string, string | string[]>;
 }) {
   const button = (value: "important" | "not_important" | "auto", label: string) => (
     <form action={action}>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="importance" value={value} />
-      {Object.entries(extraFields).map(([name, fieldValue]) => (
-        <input key={name} type="hidden" name={name} value={fieldValue} />
-      ))}
+      <HiddenFields fields={extraFields} />
       <button type="submit" className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">
         {label}
       </button>
@@ -59,5 +57,12 @@ export function ImportanceButtons({
       {reason.type !== "override-not-important" && isImportantReason(reason) && button("not_important", "중요 아님")}
       {overridden && button("auto", reason.type === "override-not-important" ? "제외 해제 (자동)" : "자동으로 되돌리기")}
     </div>
+  );
+}
+
+/** Hidden inputs for a form; an array value becomes one input per element (e.g. repeated src). */
+export function HiddenFields({ fields }: { fields: Record<string, string | string[]> }) {
+  return Object.entries(fields).flatMap(([name, value]) =>
+    (Array.isArray(value) ? value : [value]).map((item, index) => <input key={`${name}-${index}`} type="hidden" name={name} value={item} />),
   );
 }

@@ -5,6 +5,7 @@ import { getImportanceReason, type ImportanceReason } from "@/lib/importance/mat
 import type { KstDate } from "@/lib/schedule/kst";
 import { buildMonthGrid, dayRange, gridRange, monthRange, placeEvents, type GridDay, type PlacedEvents } from "./month-grid";
 import { isPartnership } from "./partnership";
+import { loadCalendarSources, resolveSourceFilter, type SourceChip, type SourceFilter, type SourceSelection } from "./source-filter";
 import type { CalendarEvent, CalendarEventWithSource } from "./types";
 
 export type CalendarMonthView = {
@@ -23,8 +24,11 @@ export type CalendarMonthView = {
   partnerships: CalendarEvent[];
   /** every important event on the calendar, whatever the month (the important tab; partnerships included) */
   important: CalendarEvent[];
-  /** ids of `important`, for the ★ on grid chips (a highlight, never a filter) */
+  /** ids of every important event (NOT narrowed by the source filter), for the ★ on grid chips */
   importantIds: Set<string>;
+  /** the source filter's chips (counts over the whole calendar) and what the current selection means */
+  sourceChips: SourceChip[];
+  sourceFilter: SourceFilter["kind"];
   /** how many important keywords exist (0 = the important tab explains how to start) */
   keywordCount: number;
   /** set when an event is selected */
@@ -36,32 +40,46 @@ const withoutPartnerships = (events: CalendarEvent[]) => events.filter((event) =
 /**
  * Everything the calendar page shows. READ-ONLY by contract: rendering a page must never write, so this
  * function only ever SELECTs (a test pins that with total_changes()). Repairs live in reconcileCalendar().
+ *
+ * The source filter is applied here, to every list BEFORE it is placed or counted, so the grid, the lists and
+ * every number on the page agree. The selected event (?event=) is shown whatever the filter.
  */
 export function loadCalendarMonth(
   db: Db,
   month: { y: number; m: number },
-  { day = null, eventId = null }: { day?: KstDate | null; eventId?: string | null } = {},
+  {
+    day = null,
+    eventId = null,
+    sources = { keys: [], malformed: false },
+  }: { day?: KstDate | null; eventId?: string | null; sources?: SourceSelection } = {},
 ): CalendarMonthView {
   const events = calendarEventsRepo(db);
   const grid = buildMonthGrid(month);
   const range = gridRange(grid);
   const inMonth = monthRange(month);
-  const onDay = day ? events.listOverlapping(dayRange(day).start, dayRange(day).end) : null;
 
-  const selectedEvent = eventId ? events.getWithSource(eventId) : null;
   const keywords = importantKeywordsRepo(db).list();
-  const important = events.listImportant();
+  const allImportant = events.listImportant();
+  const importantIds = new Set(allImportant.map((event) => event.id));
+  const calendarSources = loadCalendarSources(db, importantIds);
+  const filter = resolveSourceFilter(sources, calendarSources, importantIds);
+  const keep = (list: CalendarEvent[]) => list.filter(filter.allows);
+
+  const onDay = day ? keep(events.listOverlapping(dayRange(day).start, dayRange(day).end)) : null;
+  const selectedEvent = eventId ? events.getWithSource(eventId) : null;
   return {
     month,
     grid,
-    placed: placeEvents(withoutPartnerships(events.listOverlapping(range.start, range.end)), grid),
-    monthCount: withoutPartnerships(events.listOverlapping(inMonth.start, inMonth.end)).length,
-    undated: events.listUndated(),
+    placed: placeEvents(withoutPartnerships(keep(events.listOverlapping(range.start, range.end))), grid),
+    monthCount: withoutPartnerships(keep(events.listOverlapping(inMonth.start, inMonth.end))).length,
+    undated: keep(events.listUndated()),
     dayEvents: onDay ? withoutPartnerships(onDay) : null,
     dayPartnershipCount: onDay ? onDay.filter(isPartnership).length : 0,
-    partnerships: events.listAll().filter(isPartnership),
-    important,
-    importantIds: new Set(important.map((event) => event.id)),
+    partnerships: keep(events.listAll()).filter(isPartnership),
+    important: keep(allImportant),
+    importantIds,
+    sourceChips: calendarSources.chips,
+    sourceFilter: filter.kind,
     keywordCount: keywords.length,
     selected: selectedEvent
       ? {

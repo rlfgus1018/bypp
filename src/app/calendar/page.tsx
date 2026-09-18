@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { CalendarEventPanel } from "@/components/CalendarEventPanel";
 import { CalendarMonth, chipStyle, kindLabel } from "@/components/CalendarMonth";
+import { CalendarSourceFilter } from "@/components/CalendarSourceFilter";
 import { GoogleConnectionCard } from "@/components/GoogleConnectionCard";
 import { formatDay, formatEventWhen, formatInstant } from "@/lib/calendar/format";
 import { loadCalendarMonth } from "@/lib/calendar/load-month";
 import { dayKey, kstToday, monthKey, nowMs, parseDay, parseMonth, shiftMonth } from "@/lib/calendar/month-grid";
 import { groupImportant, type ImportantGroups } from "@/lib/calendar/important-list";
 import { groupPartnerships } from "@/lib/calendar/partnership";
+import { calendarHref, contextFields, toCalendarTab, type CalendarContext, type CalendarTab } from "@/lib/calendar/return-context";
+import { readSourceParams } from "@/lib/calendar/source-filter";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { getDb } from "@/lib/db/client";
 import { planBulkSend } from "@/lib/google/bulk-plan";
@@ -17,8 +20,8 @@ import { getSyncMarks, getSyncView } from "@/lib/google/sync-view";
 export const dynamic = "force-dynamic";
 
 // Rendering this page only reads — the local database, and nothing else: it never calls Google. Local events
-// change through the status actions on the review page and ./actions.ts; a Google event is created only by
-// the explicit per-event action there.
+// change through the status actions on the review page and ./actions.ts; Google events are created only by the
+// explicit actions there (one event, or the reviewed list on /calendar/google).
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const params = await searchParams;
   const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : undefined);
@@ -28,9 +31,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   // A selected day decides the month when none is given, so day links work on their own.
   const month = parseMonth(one("month")) ?? (day ? { y: day.y, m: day.m } : { y: today.y, m: today.m });
   const db = getDb();
+  // ?src= may repeat: the chosen sources (★ 중요, chats, 직접 추가) — an event shows when it matches any of them.
+  const selection = readSourceParams(params.src);
   const view = loadCalendarMonth(db, month, {
     day,
     eventId: one("event") ?? null,
+    sources: selection,
   });
   const connection = getConnectionView(db, isGoogleConfigured());
   const syncMarks = getSyncMarks(db);
@@ -38,32 +44,21 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   // Long partnership notices have a tab of their own (?tab=partnerships), so they do not bury the grid and day lists.
   // Important events have one too (?tab=important). Any other value is the calendar itself.
-  const rawTab = one("tab");
-  const activeTab: CalendarTab = rawTab === "partnerships" || rawTab === "important" ? rawTab : "calendar";
+  const activeTab = toCalendarTab(one("tab"));
   const onPartnerships = activeTab === "partnerships";
   const partnerships = groupPartnerships(view.partnerships, today);
   const important = groupImportant(view.important, today);
 
   const current = monthKey(month);
-  const hrefFor = ({
-    day: toDay,
-    event,
-    month: toMonth,
-    tab,
-  }: {
-    day?: string;
-    event?: string;
-    month?: string;
-    tab?: CalendarTab;
-  }) => {
-    const query = new URLSearchParams({ month: toMonth ?? current });
-    const target = tab ?? activeTab;
-    if (target !== "calendar") query.set("tab", target);
-    if (toDay) query.set("day", toDay);
-    if (event) query.set("event", event);
-    return `/calendar?${query.toString()}`;
-  };
+  // Every link, form and post-action redirect keeps month, tab and the source filter (an invalid filter is dropped).
+  const filtering = view.sourceFilter === "some";
+  const context: CalendarContext = { month: current, tab: activeTab, src: view.sourceFilter === "invalid" ? [] : selection.keys };
+  const hrefFor = ({ day: toDay, event, month: toMonth, tab }: { day?: string; event?: string; month?: string; tab?: CalendarTab }) =>
+    calendarHref(context, { month: toMonth ?? current, tab, day: toDay, event });
   const selectedDayKey = day ? dayKey(day) : null;
+  const sourceHref = (keys: string[]) => calendarHref({ ...context, src: keys }, { day: selectedDayKey ?? undefined });
+  const sendable = planBulkSend(db, nowMs());
+  const importantSendable = planBulkSend(db, nowMs(), undefined, "important");
   const tabClass = (active: boolean) =>
     `rounded-full px-3 py-1 ${active ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`;
 
@@ -73,8 +68,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <div>
         <h1 className="text-xl font-semibold">캘린더</h1>
         <p className="mt-1 text-sm text-slate-500">
-          일정 후보에서 승인한 일정이 자동으로 들어옵니다. Google 캘린더에는 자동으로 아무것도 보내지 않으며, 일정을 열어 직접 누른 일정만 한 번
-          생성됩니다.
+          일정 후보에서 승인한 일정이 자동으로 들어옵니다. Google 캘린더에는 자동으로 아무것도 보내지 않으며, 일정을 열어 직접 누르거나
+          &ldquo;Google로 한꺼번에 보내기&rdquo;에서 확인한 일정만 한 번 생성됩니다.
         </p>
       </div>
 
@@ -103,6 +98,16 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         )}
       </nav>
 
+      <CalendarSourceFilter chips={view.sourceChips} selected={context.src} hrefFor={sourceHref} />
+      {view.sourceFilter === "invalid" && (
+        <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+          알 수 없는 출처가 선택되어 있습니다. 주소가 잘못되었거나 그 채팅방의 일정이 더 이상 없습니다. 아무것도 표시하지 않습니다.{" "}
+          <Link href={sourceHref([])} className="underline">
+            전체 보기
+          </Link>
+        </p>
+      )}
+
       {activeTab === "calendar" && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Link href={hrefFor({ month: monthKey(shiftMonth(month, -1)) })} className="rounded border border-slate-300 bg-white px-3 py-1.5">
@@ -121,8 +126,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         </div>
       )}
 
-      <GoogleConnectionCard connection={connection} flash={one("google") ?? null} sendableCount={planBulkSend(db, nowMs()).sendable.length}
-        importantSendableCount={planBulkSend(db, nowMs(), undefined, "important").sendable.length}
+      <GoogleConnectionCard
+        connection={connection}
+        flash={one("google") ?? null}
+        sendableCount={sendable.sendable.length}
+        importantSendableCount={importantSendable.sendable.length}
       />
 
       {view.selected && selectedSync && (
@@ -131,11 +139,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           sync={selectedSync}
           syncedAtText={selectedSync.syncedAt ? formatInstant(selectedSync.syncedAt) : null}
           sameSlot={view.selected.sameSlot}
-          month={current}
+          returnFields={contextFields(context)}
           closeHref={hrefFor({ day: selectedDayKey ?? undefined })}
           hrefFor={hrefFor}
           importance={view.selected.importance}
-          tab={activeTab === "calendar" ? "" : activeTab}
         />
       )}
       {one("event") && !view.selected && (
@@ -146,6 +153,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <ImportantList
           groups={important}
           keywordCount={view.keywordCount}
+          filtering={filtering}
           syncMarks={syncMarks}
           hrefFor={(event) => hrefFor({ tab: "important", event })}
           selectedEventId={view.selected?.event.id ?? null}
@@ -153,6 +161,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       ) : onPartnerships ? (
         <PartnershipList
           groups={partnerships}
+          filtering={filtering}
           syncMarks={syncMarks}
           hrefFor={(event) => hrefFor({ tab: "partnerships", event })}
           selectedEventId={view.selected?.event.id ?? null}
@@ -185,7 +194,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 ) : undefined
               }
               events={view.dayEvents}
-              empty="이 날에는 제휴 말고 다른 일정이 없습니다."
+              empty={
+                view.dayPartnershipCount > 0
+                  ? "이 날에는 제휴 말고 다른 일정이 없습니다."
+                  : filtering
+                    ? "이 날에는 선택한 출처의 일정이 없습니다."
+                    : "이 날에는 일정이 없습니다."
+              }
               hrefFor={(event) => hrefFor({ day: selectedDayKey ?? undefined, event })}
             />
           )}
@@ -200,13 +215,24 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             />
           )}
 
-          {view.monthCount === 0 && view.undated.length === 0 && (
+          {view.monthCount === 0 && view.undated.length === 0 && view.sourceFilter !== "invalid" && (
             <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-              이 달에는 일정이 없습니다.{" "}
-              <Link href="/candidates" className="underline">
-                일정 후보
-              </Link>
-              에서 Approve한 일정이 여기에 표시됩니다.
+              {filtering ? (
+                <>
+                  선택한 출처에 이 달 일정이 없습니다.{" "}
+                  <Link href={sourceHref([])} className="underline">
+                    전체 보기
+                  </Link>
+                </>
+              ) : (
+                <>
+                  이 달에는 일정이 없습니다.{" "}
+                  <Link href="/candidates" className="underline">
+                    일정 후보
+                  </Link>
+                  에서 Approve한 일정이 여기에 표시됩니다.
+                </>
+              )}
             </p>
           )}
         </>
@@ -215,8 +241,6 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   );
 }
 
-type CalendarTab = "calendar" | "important" | "partnerships";
-
 /**
  * The important tab: every important event, whatever the month — coming up, undated, and (folded) past.
  * Always reachable, so when it is empty it says how to fill it.
@@ -224,17 +248,23 @@ type CalendarTab = "calendar" | "important" | "partnerships";
 function ImportantList({
   groups,
   keywordCount,
+  filtering,
   syncMarks,
   hrefFor,
   selectedEventId,
 }: {
   groups: ImportantGroups;
   keywordCount: number;
+  /** a source filter is on: an empty list means "none from these sources", not "none at all" */
+  filtering: boolean;
   syncMarks: ReadonlyMap<string, "created" | "failed">;
   hrefFor: (eventId: string) => string;
   selectedEventId: string | null;
 }) {
   const total = groups.upcoming.length + groups.undated.length + groups.past.length;
+  if (total === 0 && filtering) {
+    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">선택한 출처에 해당하는 중요 일정이 없습니다.</p>;
+  }
   if (total === 0) {
     return (
       <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/40 p-8 text-center text-sm text-slate-600">
@@ -328,16 +358,21 @@ const PHASES = [
  */
 function PartnershipList({
   groups,
+  filtering,
   syncMarks,
   hrefFor,
   selectedEventId,
 }: {
   groups: ReturnType<typeof groupPartnerships>;
+  filtering: boolean;
   syncMarks: ReadonlyMap<string, "created" | "failed">;
   hrefFor: (eventId: string) => string;
   selectedEventId: string | null;
 }) {
   const total = groups.active.length + groups.upcoming.length + groups.ended.length;
+  if (total === 0 && filtering) {
+    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">선택한 출처에 해당하는 제휴 일정이 없습니다.</p>;
+  }
   if (total === 0) {
     return (
       <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">

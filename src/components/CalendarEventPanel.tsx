@@ -10,29 +10,27 @@ import { parseIsoToKst } from "@/lib/schedule/kst";
 import { CalendarEventForm } from "./CalendarEventForm";
 import { chipStyle, kindLabel } from "./CalendarMonth";
 import { GoogleSyncSection } from "./GoogleSyncSection";
-import { ImportanceBadge, ImportanceButtons, reasonText } from "./ImportanceControls";
+import { HiddenFields, ImportanceBadge, ImportanceButtons, reasonText } from "./ImportanceControls";
 
 export function CalendarEventPanel({
   event,
   sync,
   syncedAtText,
   sameSlot,
-  month,
+  returnFields,
   closeHref,
   hrefFor,
   importance = { type: "none" },
-  tab = "",
 }: {
   event: CalendarEventWithSource;
   sync: SyncView;
   syncedAtText: string | null;
   sameSlot: CalendarEvent[];
-  month: string;
+  /** month, tab and source filter, so every action returns to the same calendar view */
+  returnFields: Record<string, string | string[]>;
   closeHref: string;
   hrefFor: (params: { event: string }) => string;
   importance?: ImportanceReason;
-  /** the calendar tab the panel is open on, so the importance buttons come back to it */
-  tab?: string;
 }) {
   const notice = kindLabel(event);
   const extracted = event.source?.extracted ?? null;
@@ -55,7 +53,7 @@ export function CalendarEventPanel({
       <p className="mt-1">{formatEventWhen(event)}</p>
       <p className="text-slate-600">{event.location ?? "장소 정보 없음"}</p>
       <div className="mt-2">
-        <ImportanceButtons id={event.id} reason={importance} action={setEventImportance} extraFields={{ month, ...(tab ? { tab } : {}) }} />
+        <ImportanceButtons id={event.id} reason={importance} action={setEventImportance} extraFields={returnFields} />
         {event.candidateId && <p className="mt-1 text-xs text-slate-500">중요 표시는 원본 일정 후보에도 함께 적용됩니다. Google에 이미 보낸 일정은 바뀌지 않습니다.</p>}
       </div>
       {notice && (
@@ -107,7 +105,7 @@ export function CalendarEventPanel({
         <summary className="cursor-pointer font-medium">수정</summary>
         <div className="mt-2">
           {/* keyed by updatedAt so the fields reset to the saved values after each save */}
-          <CalendarEventForm key={`${event.id}-${event.updatedAt}`} id={event.id} month={month} initial={toFormValues(event)} />
+          <CalendarEventForm key={`${event.id}-${event.updatedAt}`} id={event.id} returnFields={returnFields} initial={toFormValues(event)} />
         </div>
       </details>
 
@@ -132,7 +130,7 @@ export function CalendarEventPanel({
           )}
           <form action={removeCalendarEvent} className="mt-2">
             <input type="hidden" name="id" value={event.id} />
-            <input type="hidden" name="month" value={month} />
+            <HiddenFields fields={returnFields} />
             <button type="submit" className="rounded bg-red-700 px-3 py-1.5 text-sm font-medium text-white">
               제거 확인
             </button>

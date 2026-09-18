@@ -8,14 +8,16 @@ const field = "rounded border border-slate-300 bg-white px-2 py-1 disabled:bg-sl
 const INITIAL: EventFormState = { errors: [] };
 
 /** Edits the CalendarEvent only; the candidate it was extracted into is never changed. */
-export function CalendarEventForm({ id, month, initial }: { id: string; month: string; initial: EventFormValues }) {
+export function CalendarEventForm({ id, returnFields, initial }: { id: string; returnFields: Record<string, string | string[]>; initial: EventFormValues }) {
   const [state, action, pending] = useActionState(updateCalendarEvent, INITIAL);
   const [allDay, setAllDay] = useState(initial.allDay);
 
   return (
     <form action={action} className="space-y-2 text-sm">
       <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="month" value={month} />
+      {Object.entries(returnFields).flatMap(([name, value]) =>
+        (Array.isArray(value) ? value : [value]).map((item, index) => <input key={`${name}-${index}`} type="hidden" name={name} value={item} />),
+      )}
       <label className="flex flex-col gap-1">
         <span className="text-xs text-slate-500">제목</span>
         <input name="title" defaultValue={initial.title} required maxLength={200} className={field} />

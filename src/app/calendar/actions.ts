@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { removeEventFromCalendar, setCalendarEventImportanceOverride } from "@/lib/calendar/candidate-event-link";
 import { parseEventInput, readEventForm } from "@/lib/calendar/event-input";
+import { calendarHref, readCalendarContext } from "@/lib/calendar/return-context";
 import { getDb } from "@/lib/db/client";
 import { calendarEventsRepo, EventSyncInProgressError } from "@/lib/db/repositories/calendar-events";
 import { getGoogleRuntime } from "@/lib/google/runtime";
@@ -13,19 +14,11 @@ import { OUTCOME_TEXT, RECOVERED_TEXT } from "@/lib/google/outcome-text";
 import { createGoogleEvent, type SyncOutcome } from "@/lib/google/sync-service";
 
 const Id = z.string().min(1);
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export type EventFormState = { errors: string[] };
 
-/** Where the calendar should land after a change: the event's own month when it has a date. */
-function calendarUrl(startAt: string | null, fallbackMonth: string, eventId: string | null): string {
-  const params = new URLSearchParams();
-  const month = startAt ? startAt.slice(0, 7) : fallbackMonth;
-  if (MONTH.test(month)) params.set("month", month);
-  if (eventId) params.set("event", eventId);
-  const query = params.toString();
-  return query ? `/calendar?${query}` : "/calendar";
-}
+// Every action returns to the view it came from — month, tab and source filter, read back from the form's hidden
+// fields (only well-formed values; see return-context.ts).
 
 // Editing changes the CalendarEvent only. The candidate it came from is the extraction record and stays as it is.
 export async function updateCalendarEvent(_previous: EventFormState, formData: FormData): Promise<EventFormState> {
@@ -35,29 +28,28 @@ export async function updateCalendarEvent(_previous: EventFormState, formData: F
   if (!calendarEventsRepo(getDb()).update(id, parsed.changes)) return { errors: ["일정을 찾을 수 없습니다. 이미 제거되었을 수 있습니다."] };
 
   revalidatePath("/calendar");
-  redirect(calendarUrl(parsed.changes.startAt, String(formData.get("month") ?? ""), id));
+  // Lands on the event's own month when it has a date.
+  const context = readCalendarContext(formData);
+  redirect(calendarHref(context, { month: parsed.changes.startAt?.slice(0, 7) ?? context.month, event: id }));
 }
 
 // A derived event takes its candidate to IGNORED in the same transaction (undoable from the review page).
 export async function removeCalendarEvent(formData: FormData) {
   const id = Id.parse(formData.get("id"));
+  const context = readCalendarContext(formData);
   try {
     removeEventFromCalendar(getDb(), id);
   } catch (error) {
     if (!(error instanceof EventSyncInProgressError)) throw error;
     // A create request for this event is in flight; removing it now could lose the record of its success.
-    const back = new URLSearchParams({ event: id, google: "busy" });
-    const month = String(formData.get("month") ?? "");
-    if (MONTH.test(month)) back.set("month", month);
-    redirect(`/calendar?${back.toString()}`);
+    redirect(calendarHref(context, { event: id, extra: { google: "busy" } }));
   }
   revalidatePath("/calendar");
   revalidatePath("/candidates");
-  redirect(calendarUrl(null, String(formData.get("month") ?? ""), null));
+  redirect(calendarHref(context));
 }
 
 const ImportanceInput = z.object({ id: Id, importance: z.enum(["important", "not_important", "auto"]) });
-const TABS = new Set(["important", "partnerships"]);
 
 // Marks an event important / not important / back to automatic. Its candidate (if it has one) gets the same
 // override in the same transaction. Local only: nothing is sent to Google, and nothing already on Google changes.
@@ -67,13 +59,7 @@ export async function setEventImportance(formData: FormData) {
   revalidatePath("/calendar");
   revalidatePath("/candidates");
 
-  const back = new URLSearchParams();
-  const month = String(formData.get("month") ?? "");
-  if (MONTH.test(month)) back.set("month", month);
-  const tab = String(formData.get("tab") ?? "");
-  if (TABS.has(tab)) back.set("tab", tab);
-  back.set("event", id);
-  redirect(`/calendar?${back.toString()}`);
+  redirect(calendarHref(readCalendarContext(formData), { event: id }));
 }
 
 export type GoogleSyncState = { message: string | null; ok: boolean };
