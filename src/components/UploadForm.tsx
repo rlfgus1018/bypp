@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExtractionProgress, type OverallCounts } from "./ExtractionProgress";
 import { useExtraction } from "./ExtractionProvider";
 import { PeriodPicker, type ExportPreview, type LlmPlan, type PeriodValue } from "./PeriodPicker";
@@ -36,17 +36,67 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
   const [preview, setPreview] = useState<ExportPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [period, setPeriod] = useState<PeriodValue>({ from: "", to: "" });
+  // A file being dragged over the upload card. dragenter/dragleave also fire for its children, hence the depth count.
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
 
   const overall = extraction.overall ?? initialOverall;
   const busy = uploading ? "upload" : extraction.running ? "extract" : null;
   const error = uploadError ?? extraction.error;
 
+  const locked = busy !== null || previewing;
+
+  // Dropping a file anywhere else on this page must not make the browser leave it to open the file.
+  useEffect(() => {
+    const keepPage = (event: DragEvent) => {
+      if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+    };
+    window.addEventListener("dragover", keepPage);
+    window.addEventListener("drop", keepPage);
+    return () => {
+      window.removeEventListener("dragover", keepPage);
+      window.removeEventListener("drop", keepPage);
+    };
+  }, []);
+
+  const hasFiles = (event: React.DragEvent) => event.dataTransfer.types.includes("Files");
+  const onDragEnter = (event: React.DragEvent) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  };
+  const onDragOver = (event: React.DragEvent) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = locked ? "none" : "copy";
+  };
+  const onDragLeave = (event: React.DragEvent) => {
+    if (!hasFiles(event)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  };
+  const onDrop = (event: React.DragEvent) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    if (locked) return;
+    const dropped = event.dataTransfer.files;
+    if (dropped.length > 1) setUploadError("파일은 한 번에 하나씩 올릴 수 있습니다. 첫 번째 파일만 분석합니다.");
+    void chooseFile(dropped[0] ?? null, dropped.length > 1);
+  };
+
   async function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const chosen = event.target.files?.[0] ?? null;
+    await chooseFile(event.target.files?.[0] ?? null);
+  }
+
+  /** From the file picker or a drop: remember the file and preview it (counts only; nothing is stored). */
+  async function chooseFile(chosen: File | null, keepNotice = false) {
     setFile(chosen);
     setPreview(null);
     setSummary(null);
-    setUploadError(null);
+    if (!keepNotice) setUploadError(null);
     if (!chosen) return;
 
     setPreviewing(true);
@@ -98,13 +148,28 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
 
   return (
     <div className="space-y-3.5">
-      <form onSubmit={onSubmit} className="hud-corner space-y-3.5 rounded-lg border border-slate-200 bg-white p-5">
-        <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed border-[#94c4e8] bg-[#f8fcff] p-4">
+      <form
+        onSubmit={onSubmit}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        className="hud-corner space-y-3.5 rounded-lg border border-slate-200 bg-white p-5"
+      >
+        <div
+          className={`flex flex-wrap items-center gap-3 rounded-md border border-dashed p-4 transition-colors ${
+            dragging ? (locked ? "border-slate-300 bg-slate-100" : "border-2 border-ark-500 bg-sky-50") : "border-[#94c4e8] bg-[#f8fcff]"
+          }`}
+        >
           <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border border-ark-500 font-display text-[10px] font-semibold text-ark-700" aria-hidden>
             {extension}
           </div>
           <div className="min-w-0 flex-1">
-            {file ? (
+            {dragging ? (
+              <p className="text-[13.5px] font-medium text-ark-700" aria-live="polite">
+                {locked ? "지금은 파일을 받을 수 없습니다 (처리 중)" : "여기에 놓으면 바로 분석합니다 (저장·외부 전송 없음)"}
+              </p>
+            ) : file ? (
               <>
                 <p className="break-words text-[13.5px] font-medium">{file.name}</p>
                 <p className="text-xs text-ink-500">
@@ -117,7 +182,7 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
               </>
             ) : (
               <>
-                <p className="text-[13.5px] font-medium">KakaoTalk 대화 내보내기 파일 (.txt / .eml)</p>
+                <p className="text-[13.5px] font-medium">KakaoTalk 대화 내보내기 파일 (.txt / .eml)을 끌어다 놓거나 선택하세요</p>
                 <p className="text-xs text-ink-500">
                   파일을 고르면 먼저 기간별 건수만 분석합니다(저장·외부 전송 없음).{" "}
                   <Link href="/#export" className="text-ark-700 underline-offset-2 hover:underline">
@@ -133,7 +198,7 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
             type="file"
             accept=".txt,.eml,text/plain,message/rfc822"
             className="peer sr-only"
-            disabled={busy !== null || previewing}
+            disabled={locked}
             onChange={onFileChange}
           />
           <label
