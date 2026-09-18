@@ -378,7 +378,7 @@ describe("event mapper (pure, Local CalendarEvent only)", () => {
     expect(reason({ kind: "UPDATE_NOTICE" })).toBe("notice");
     expect(reason({ kind: "CANCEL_NOTICE" })).toBe("notice");
     expect(reason({ startAt: null, endAt: null })).toBe("undated");
-    expect(reason({ endAt: null })).toBe("ok"); // sent with Google's "end unspecified" (see below)
+    expect(reason({ endAt: null })).toBe("ok"); // sent as start + 1 hour (see below)
     expect(reason({ category: "DEADLINE", endAt: null })).toBe("ok");
     expect(reason({ allDay: true, startAt: kst("2026-09-22"), endAt: null })).toBe("bad-interval"); // malformed all-day: not repaired
     expect(reason({ title: "  " })).toBe("no-title");

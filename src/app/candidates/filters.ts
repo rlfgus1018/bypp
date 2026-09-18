@@ -91,7 +91,7 @@ export function searchFields(values: FilterValues): Record<string, string> {
 }
 
 /** The scopes (chosen chat, importance), as URL/form fields. */
-export function scopeFields(values: FilterValues): Record<string, string> {
+function scopeFields(values: FilterValues): Record<string, string> {
   return { ...(values.source ? { source: values.source } : {}), ...(values.importance ? { importance: values.importance } : {}) };
 }
 

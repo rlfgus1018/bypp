@@ -110,7 +110,7 @@ describe("planBulkSend (local database only)", () => {
     expect(plan.sendable.map((item) => [item.event.id, item.retry, item.defaultEnd])).toEqual([
       [ready.id, false, false],
       [failed.id, true, false], // an earlier attempt exists: the retry will look before it sends
-      [noEnd.id, false, true], // no end time: sendable, with Google's "end unspecified"
+      [noEnd.id, false, true], // no end time: sendable, as start + 1 hour on Google
     ]);
     expect(plan.created.map((item) => [item.event.id, item.editedSince])).toEqual([
       [sent.id, false],

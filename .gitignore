@@ -48,3 +48,8 @@ next-env.d.ts
 *.db
 *.db-wal
 *.db-shm
+
+# md
+*.md
+!README.md
+!docs/*.md
