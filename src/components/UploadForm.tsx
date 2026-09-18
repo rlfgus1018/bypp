@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { ExtractionProgress, type OverallCounts } from "./ExtractionProgress";
 import { useExtraction } from "./ExtractionProvider";
-import { PeriodPicker, type ExportPreview, type PeriodValue } from "./PeriodPicker";
+import { PeriodPicker, type ExportPreview, type LlmPlan, type PeriodValue } from "./PeriodPicker";
 
 // Shape of the /api/imports response. Deliberately redeclared here: UI components never
 // import server-only modules (pipeline, db, ai).
 type IngestSummary = {
   container: string | null;
   roomName: string | null;
+  chatTitle: string;
   totalParsed: number;
   newMessages: number;
   duplicateMessages: number;
@@ -23,7 +24,7 @@ type IngestSummary = {
   deletedPlaceholders: number;
 };
 
-export function UploadForm({ initialOverall, llmEnabled }: { initialOverall: OverallCounts; llmEnabled: boolean }) {
+export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOverall: OverallCounts; llmEnabled: boolean; llmPlan: LlmPlan }) {
   // The extraction loop itself lives in <ExtractionProvider>, so it keeps running (and keeps its
   // progress) while the user visits other pages.
   const extraction = useExtraction();
@@ -123,7 +124,7 @@ export function UploadForm({ initialOverall, llmEnabled }: { initialOverall: Ove
         </p>
         {preview && (
           <div className="mt-4">
-            <PeriodPicker preview={preview} value={period} onChange={setPeriod} llmEnabled={llmEnabled} disabled={busy !== null} />
+            <PeriodPicker preview={preview} value={period} onChange={setPeriod} llmEnabled={llmEnabled} llmPlan={llmPlan} disabled={busy !== null} />
           </div>
         )}
       </form>
@@ -134,7 +135,7 @@ export function UploadForm({ initialOverall, llmEnabled }: { initialOverall: Ove
         <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
           <h2 className="font-semibold">가져오기 결과</h2>
           <p className="mt-1 text-xs text-slate-500">
-            {summary.roomName ?? "(방 이름 없음)"} · 형식: {summary.container} · 추출 기간:{" "}
+            채팅방: {summary.chatTitle} · 형식: {summary.container} · 추출 기간:{" "}
             {summary.range.from || summary.range.to ? `${summary.range.from ?? "처음"} ~ ${summary.range.to ?? "끝"}` : "전체"}
           </p>
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">

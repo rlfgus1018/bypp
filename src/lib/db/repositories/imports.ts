@@ -64,6 +64,12 @@ export function importsRepo(db: Db) {
       ).run({ id, ...counts });
     },
 
+    /** File and room names of every upload that actually stored messages (an all-duplicate re-upload added nothing). */
+    listStoredSources(): { filename: string; roomName: string | null }[] {
+      const rows = db.prepare("SELECT filename, room_name FROM imports WHERE new_messages > 0").all() as { filename: string; room_name: string | null }[];
+      return rows.map((row) => ({ filename: row.filename, roomName: row.room_name }));
+    },
+
     listRecent(limit = 10): ImportRecord[] {
       const rows = db.prepare("SELECT * FROM imports ORDER BY created_at DESC LIMIT ?").all(limit) as RawRow[];
       return rows.map((row) => ({

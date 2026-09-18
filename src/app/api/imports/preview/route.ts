@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    return Response.json(await previewKakaoExport(getDb(), { bytes }));
+    return Response.json(await previewKakaoExport(getDb(), { bytes, filename: file.name }));
   } catch (error) {
     if (error instanceof ExportDecodeError) return Response.json({ error: error.message, code: error.code }, { status: 422 });
     console.error("preview failed:", error instanceof Error ? error.message : error);

@@ -151,13 +151,13 @@ export function calendarSyncsRepo(db: Db) {
     },
 
     /** Status of every event in one query (the month view marks chips without asking per event, or asking Google). */
-    statusByEvent(): Map<string, { status: SyncStatus; sentHash: string | null }> {
-      const rows = db.prepare("SELECT calendar_event_id, sync_status, sent_hash FROM calendar_syncs WHERE provider = 'google'").all() as {
-        calendar_event_id: string;
-        sync_status: SyncStatus;
-        sent_hash: string | null;
-      }[];
-      return new Map(rows.map((row) => [row.calendar_event_id, { status: row.sync_status, sentHash: row.sent_hash }]));
+    statusByEvent(): Map<string, { status: SyncStatus; sentHash: string | null; leaseExpiresAt: string | null; syncedAt: string | null }> {
+      const rows = db
+        .prepare("SELECT calendar_event_id, sync_status, sent_hash, lease_expires_at, synced_at FROM calendar_syncs WHERE provider = 'google'")
+        .all() as { calendar_event_id: string; sync_status: SyncStatus; sent_hash: string | null; lease_expires_at: string | null; synced_at: string | null }[];
+      return new Map(
+        rows.map((row) => [row.calendar_event_id, { status: row.sync_status, sentHash: row.sent_hash, leaseExpiresAt: row.lease_expires_at, syncedAt: row.synced_at }]),
+      );
     },
 
     /** Any attempt ever made under this account? Decides whether the connection may be swapped to another account. */

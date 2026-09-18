@@ -14,6 +14,8 @@ import { messagesRepo } from "@/lib/db/repositories/messages";
 import { HeuristicExtractor } from "@/lib/schedule/heuristic-extractor";
 import { HybridExtractor } from "@/lib/schedule/hybrid-extractor";
 import type { ExtractionInput, ExtractionOutcome, ScheduleExtractor } from "@/lib/schedule/types";
+import { LlmBatchScheduleExtractor } from "@/lib/ai/llm-batch-extractor";
+import { planLlmUnits } from "./batching";
 import { extractPendingBatch } from "./extract";
 import { ingestKakaoExport, previewKakaoExport } from "./ingest";
 
@@ -308,6 +310,121 @@ describe("extractPendingBatch", () => {
 
     const rest = await extractPendingBatch(db, slow, 100);
     expect(rest.overall).toEqual({ extracted: 7, failed: 0, pending: 0 });
+  });
+});
+
+describe("LLM units: batching and concurrency", () => {
+  const msg = (roomName: string | null, length: number, id = "m") => ({ id, roomName, text: "가".repeat(length) });
+
+  it("plans units by size, character budget and room, keeping order", () => {
+    const sizes = (units: { text: string }[][]) => units.map((unit) => unit.length);
+    expect(sizes(planLlmUnits(Array.from({ length: 12 }, () => msg("A", 100)), 5))).toEqual([5, 5, 2]);
+    expect(sizes(planLlmUnits(Array.from({ length: 4 }, () => msg("A", 100)), 1))).toEqual([1, 1, 1, 1]);
+    expect(sizes(planLlmUnits([msg("A", 100), msg("A", 100), msg("B", 100), msg("B", 100), msg("A", 100)], 5))).toEqual([2, 2, 1]); // never two rooms together
+    expect(sizes(planLlmUnits([msg("A", 1500), msg("A", 1500), msg("A", 1500), msg("A", 100)], 5))).toEqual([2, 2]); // 4000-char budget
+    expect(sizes(planLlmUnits([msg("A", 100), msg("A", 9000), msg("A", 100)], 5))).toEqual([1, 1, 1]); // a long message travels alone
+    expect(planLlmUnits([], 5)).toEqual([]);
+  });
+
+  /** A batch-capable stand-in for the LLM: answers every message with no candidates and records how it was called. */
+  function recordingLlm(delayMs = 0) {
+    const state = { batches: [] as number[], singles: 0, inFlight: 0, maxInFlight: 0 };
+    const busy = async () => {
+      state.inFlight += 1;
+      state.maxInFlight = Math.max(state.maxInFlight, state.inFlight);
+      if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      state.inFlight -= 1;
+    };
+    const secondary: ScheduleExtractor = {
+      async extract() {
+        state.singles += 1;
+        await busy();
+        return { candidates: [], extractor: "llm:fake" };
+      },
+      async extractMany(inputs) {
+        state.batches.push(inputs.length);
+        await busy();
+        return inputs.map(() => ({ candidates: [], extractor: "llm:fake" }));
+      },
+    };
+    return { state, extractor: new HybridExtractor(secondary) };
+  }
+
+  it("rule-only messages never reach the LLM; the rest goes out in batches only when asked to", async () => {
+    await ingestKakaoExport(db, file("schedules.txt"));
+    const rules = new HybridExtractor(new HeuristicExtractor());
+    const ambiguous = messagesRepo(db).listPendingExtraction(100).filter((m) => rules.extractLocally({ message: m, referenceTime: m.sentAt }) === null).length;
+    expect(ambiguous).toBeGreaterThan(1);
+
+    const batched = recordingLlm();
+    expect(await extractPendingBatch(db, batched.extractor, 100, { batchSize: 5 })).toMatchObject({ processed: 7, failed: 0, remaining: 0, paused: null });
+    expect(batched.state).toMatchObject({ batches: [ambiguous], singles: 0 });
+
+    db = createDb(":memory:");
+    await ingestKakaoExport(db, file("schedules.txt"));
+    const classic = recordingLlm();
+    await extractPendingBatch(db, classic.extractor, 100); // batchSize 1 (the default): exactly the old behaviour
+    expect(classic.state).toMatchObject({ batches: [], singles: ambiguous });
+  });
+
+  it("keeps at most `concurrency` requests in flight and still settles every message exactly once", async () => {
+    await ingestKakaoExport(db, file("schedules.txt"));
+    const { state, extractor } = recordingLlm(15);
+    const result = await extractPendingBatch(db, extractor, 100, { concurrency: 3 });
+    expect(result).toMatchObject({ processed: 7, failed: 0, remaining: 0 });
+    expect(state.maxInFlight).toBeGreaterThan(1);
+    expect(state.maxInFlight).toBeLessThanOrEqual(3);
+    expect(messagesRepo(db).countByStatus()).toMatchObject({ EXTRACTED: 7 });
+  });
+
+  it("a rate limit on one request stops new launches; in-flight work is kept, the rest stays pending, nothing fails", async () => {
+    await ingestKakaoExport(db, file("schedules.txt"));
+    let call = 0;
+    const secondary: ScheduleExtractor = {
+      async extract() {
+        const mine = call++;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        if (mine === 1) throw new LlmRateLimitError("minute", 30_000);
+        return { candidates: [], extractor: "llm:fake" };
+      },
+    };
+    const result = await extractPendingBatch(db, new HybridExtractor(secondary), 100, { concurrency: 2 });
+    expect(result).toMatchObject({ paused: "rate-limit", retryAfterMs: 30_000, failed: 0 });
+    expect(result.remaining).toBeGreaterThan(0);
+    expect(call).toBeLessThanOrEqual(3); // no new launches after the pause
+    expect(messagesRepo(db).countByStatus().FAILED).toBeUndefined();
+  });
+
+  it("with the real batch extractor: a pause during the batch leaves its messages pending, a bad answer falls back per message", async () => {
+    await ingestKakaoExport(db, file("schedules.txt"));
+    const batchExtractor = (llm: MockLlmClient): ScheduleExtractor => {
+      const one = new LlmScheduleExtractor(llm);
+      const batch = new LlmBatchScheduleExtractor(llm, one);
+      return { extract: (input) => one.extract(input), extractMany: (inputs) => batch.extractMany(inputs) };
+    };
+    const paused = new MockLlmClient([new LlmUnavailableError("server", "APIError / HTTP 503")]);
+    const during = await extractPendingBatch(db, new HybridExtractor(batchExtractor(paused)), 100, { batchSize: 5 });
+    expect(during).toMatchObject({ paused: "unavailable", failed: 0, unavailable: { kind: "server" } });
+    expect(paused.calls).toHaveLength(1);
+    expect(during.remaining).toBeGreaterThan(0);
+
+    const healthy = new MockLlmClient((request) => (request.system.includes("SEVERAL") ? { nope: true } : { candidates: [] }));
+    const after = await extractPendingBatch(db, new HybridExtractor(batchExtractor(healthy)), 100, { batchSize: 5 });
+    expect(after).toMatchObject({ paused: null, failed: 0, remaining: 0, processed: during.remaining });
+    expect(healthy.calls).toHaveLength(1 + during.remaining); // one unusable batch answer, then one request per message
+  });
+
+  it("the request budget still counts every request of the batch path", async () => {
+    await ingestKakaoExport(db, file("schedules.txt"));
+    const inner = new MockLlmClient((request) => (request.system.includes("SEVERAL") ? { nope: true } : { candidates: [] }));
+    const budgeted = new BudgetedLlmClient(inner, 2); // the batch request + one fallback request, then the budget is gone
+    const single = new LlmScheduleExtractor(budgeted);
+    const batch = new LlmBatchScheduleExtractor(budgeted, single);
+    const extractor = new HybridExtractor({ extract: (input) => single.extract(input), extractMany: (inputs) => batch.extractMany(inputs) });
+    const result = await extractPendingBatch(db, extractor, 100, { batchSize: 5 });
+    expect(inner.calls).toHaveLength(2);
+    expect(result).toMatchObject({ paused: "budget", failed: 0 });
+    expect(result.remaining).toBeGreaterThan(0);
   });
 });
 

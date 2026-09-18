@@ -21,6 +21,8 @@ export type NewMessageRow = {
 export type MessageRow = {
   id: string;
   fingerprint: string;
+  /** which chat the message came from; messages of different rooms are never sent to the LLM together */
+  roomName: string | null;
   sentAt: string;
   sender: string;
   text: string;
@@ -31,6 +33,7 @@ export type MessageRow = {
 type RawRow = {
   id: string;
   fingerprint: string;
+  room_name: string | null;
   sent_at: string;
   sender: string;
   text: string;
@@ -41,6 +44,7 @@ type RawRow = {
 const toRow = (raw: RawRow): MessageRow => ({
   id: raw.id,
   fingerprint: raw.fingerprint,
+  roomName: raw.room_name,
   sentAt: raw.sent_at,
   sender: raw.sender,
   text: raw.text,
@@ -48,7 +52,7 @@ const toRow = (raw: RawRow): MessageRow => ({
   processingStatus: raw.processing_status,
 });
 
-const SELECT = "SELECT id, fingerprint, sent_at, sender, text, kind, processing_status FROM messages";
+const SELECT = "SELECT id, fingerprint, room_name, sent_at, sender, text, kind, processing_status FROM messages";
 
 export function messagesRepo(db: Db) {
   const insert = db.prepare(`

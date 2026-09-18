@@ -38,6 +38,7 @@ export function BulkActions({
   count,
   duplicateCount,
   filtering,
+  scopeLabel,
 }: {
   tab: TabKey;
   /** the active filter as form fields (without the tab) */
@@ -46,6 +47,8 @@ export function BulkActions({
   /** of those, how many would land on a calendar slot that is already taken (asked about when approving all) */
   duplicateCount: number;
   filtering: boolean;
+  /** whose candidates this covers, e.g. `채팅방 "PULSE 집행위원회 공지방"` or `전체 채팅방` */
+  scopeLabel: string;
 }) {
   const [state, action, pending] = useActionState(setFilteredCandidatesStatus, INITIAL);
   const [target, setTarget] = useState<Target | null>(null);
@@ -59,7 +62,8 @@ export function BulkActions({
     <section className="rounded-lg border border-slate-200 bg-white p-3 text-sm" aria-label="일괄 처리">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-slate-600">
-          {filtering ? "검색된" : "이 탭의"} <strong className="tabular-nums">{count.toLocaleString()}</strong>건 전체를
+          <span className="break-words font-medium text-slate-800">{scopeLabel}</span>의 {filtering ? "검색된 " : ""}
+          <strong className="tabular-nums">{count.toLocaleString()}</strong>건 전체를
         </span>
         {targets.map((candidate) => (
           <button
@@ -88,9 +92,9 @@ export function BulkActions({
           ))}
           <input type="hidden" name="expectedDuplicates" value={target === "APPROVED" ? duplicateCount : 0} />
           <p>
-            <strong className="tabular-nums">{count.toLocaleString()}건</strong>이 {EFFECT[target]}
+            <span className="break-words font-medium">{scopeLabel}</span>의 <strong className="tabular-nums">{count.toLocaleString()}건</strong>이 {EFFECT[target]}
             {count > 100 ? " 화면에는 100건만 보이지만, 조건에 맞는 전부가 대상입니다." : ""}
-            {!filtering ? " 필터가 걸려 있지 않습니다 — 이 탭의 전부가 대상입니다." : ""}
+            {!filtering ? " 검색 조건이 걸려 있지 않습니다 — 이 범위의 이 탭 전부가 대상입니다." : ""}
           </p>
           {asksAboutDuplicates && (
             <fieldset className="mt-3 rounded border border-amber-400 bg-white p-3 text-slate-800">
