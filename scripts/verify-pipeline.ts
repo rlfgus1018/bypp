@@ -2,10 +2,15 @@
 // twice, against a throwaway DB, and assert the Milestone 1 invariants.
 //
 //   npm run verify:pipeline -- "<file>"                              → zero external requests
-//   npm run verify:pipeline -- "<file>" --llm --limit 30 [--show-payload]
+//   npm run verify:pipeline -- "<file>" --llm --limit 30 [--show-payload] [--batch-size 5] [--concurrency 1]
+//   npm run verify:pipeline -- "<file>" --llm --limit 60 --compare-batch 5 [--sample 20]
+//        → same ambiguous messages extracted one-per-request AND batched; prints agreement rates only
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { BudgetedLlmClient } from "../src/lib/ai/budgeted-llm-client";
-import { buildLlmPayload } from "../src/lib/ai/llm-schedule-extractor";
+import { buildBatchPayload, LlmBatchScheduleExtractor } from "../src/lib/ai/llm-batch-extractor";
+import { isLlmPauseError, type LlmClient } from "../src/lib/ai/llm-client";
+import { buildLlmPayload, LlmScheduleExtractor } from "../src/lib/ai/llm-schedule-extractor";
+import { planLlmUnits } from "../src/lib/pipeline/batching";
 import { createDb } from "../src/lib/db/client";
 import { candidatesRepo } from "../src/lib/db/repositories/candidates";
 import { messagesRepo } from "../src/lib/db/repositories/messages";
@@ -20,8 +25,8 @@ import { ScheduleCandidateDraftSchema } from "../src/lib/schedule/schemas";
 import type { ExtractionInput, ExtractionOutcome, ScheduleExtractor } from "../src/lib/schedule/types";
 
 const PRIVACY_WARNING = `
-  ⚠  Gemini API를 활성화하면 일정 해석이 필요한 일부 카카오톡 메시지가
-     외부 Google Gemini API로 전송될 수 있습니다.
+  ⚠  LLM API를 활성화하면 일정 해석이 필요한 일부 카카오톡 메시지가
+     선택한 외부 LLM 공급자로 전송될 수 있습니다.
      무료 API Tier의 데이터 처리 정책은 유료 Tier와 다를 수 있으므로
      실제 개인/타인의 대화 데이터를 전송하기 전에 최신 Google 정책을 확인하세요.
 `;
@@ -38,9 +43,26 @@ function loadDotEnv() {
   }
 }
 
+/** Counts the messages handed to the extractor, and forwards its optional abilities so batching is really exercised. */
 class CountingExtractor implements ScheduleExtractor {
   calls = 0;
-  constructor(private readonly inner: ScheduleExtractor) {}
+  extractLocally?: ScheduleExtractor["extractLocally"];
+  extractMany?: ScheduleExtractor["extractMany"];
+  constructor(private readonly inner: ScheduleExtractor) {
+    if (inner.extractLocally) {
+      this.extractLocally = (input) => {
+        const outcome = inner.extractLocally!(input);
+        if (outcome) this.calls += 1;
+        return outcome;
+      };
+    }
+    if (inner.extractMany) {
+      this.extractMany = (inputs) => {
+        this.calls += inputs.length;
+        return inner.extractMany!(inputs);
+      };
+    }
+  }
   async extract(input: ExtractionInput): Promise<ExtractionOutcome> {
     this.calls += 1;
     return this.inner.extract(input);
@@ -54,14 +76,23 @@ const oneLine = (text: string, max = 70) => text.replace(/\s+/g, " ").slice(0, m
 async function main() {
   loadDotEnv();
   const args = process.argv.slice(2);
-  const file = args.find((a) => !a.startsWith("--"));
   const useLlm = args.includes("--llm");
   const showPayload = args.includes("--show-payload");
   const limitArg = args.indexOf("--limit");
   const limit = limitArg >= 0 ? Number(args[limitArg + 1]) : NaN;
 
-  if (!file) throw new Error('usage: npm run verify:pipeline -- "<export file>" [--llm --limit N [--show-payload]]');
+  const numberArg = (name: string) => {
+    const at = args.indexOf(name);
+    return at >= 0 ? Number(args[at + 1]) : NaN;
+  };
+  const valueFlags = new Set(["--limit", "--batch-size", "--concurrency", "--compare-batch", "--sample"]);
+  const positional = args.filter((arg, index) => !arg.startsWith("--") && !valueFlags.has(args[index - 1] ?? ""));
+  const compareBatch = numberArg("--compare-batch");
+
+  if (!positional[0]) throw new Error('usage: npm run verify:pipeline -- "<export file>" [--llm --limit N [--show-payload] [--batch-size N] [--concurrency N] | --compare-batch N [--sample N]]');
+  const file = positional[0];
   if (useLlm && (!Number.isInteger(limit) || limit < 1)) throw new Error("--llm requires --limit <positive integer>");
+  if (!Number.isNaN(compareBatch) && (!useLlm || !Number.isInteger(compareBatch) || compareBatch < 1)) throw new Error("--compare-batch <N ≥ 1> needs --llm --limit (1 = the baseline: one-per-request against itself)");
 
   // Without --llm the extractor is built with allowLlm=false: zero external requests, whatever the env says.
   let budget: BudgetedLlmClient | null = null;
@@ -69,8 +100,17 @@ async function main() {
     allowLlm: useLlm,
     wrapClient: (client) => (budget = new BudgetedLlmClient(client, limit)),
   });
-  if (useLlm && !llm) throw new Error("--llm needs LLM_PROVIDER=gemini and GEMINI_API_KEY (e.g. in .env.local)");
+  if (useLlm && !llm) throw new Error("--llm needs LLM_PROVIDER=gemini|openrouter and the matching API key (e.g. in .env.local)");
   if (useLlm) console.log(PRIVACY_WARNING);
+  // CLI flags win over the environment, so a comparison never depends on what .env.local happens to say.
+  const batchSize = Number.isInteger(numberArg("--batch-size")) ? Math.max(1, numberArg("--batch-size")) : (llm?.batchSize ?? 1);
+  const concurrency = Number.isInteger(numberArg("--concurrency")) ? Math.max(1, numberArg("--concurrency")) : (llm?.concurrency ?? 1);
+
+  if (!Number.isNaN(compareBatch)) {
+    const sample = Number.isInteger(numberArg("--sample")) ? numberArg("--sample") : 20;
+    await compareBatching(new Uint8Array(readFileSync(file)), budget as unknown as BudgetedLlmClient, compareBatch, sample);
+    return;
+  }
 
   const failures: string[] = [];
   const check = (ok: boolean, label: string) => {
@@ -96,7 +136,7 @@ async function main() {
   console.log("system / deleted   :", parsed.stats.systemLines, "/", parsed.stats.deletedPlaceholders);
   console.log("fingerprint clashes:", collisions);
   console.log("suspicious lines   :", parsed.stats.suspiciousContinuations.length);
-  console.log(describeLlm(llm), useLlm ? `(request limit ${limit})` : "(no --llm: external requests disabled)");
+  console.log(describeLlm(llm), useLlm ? `(request limit ${limit}; this run: ${batchSize} msg/request, ${concurrency} in flight)` : "(no --llm: external requests disabled)");
 
   // ── run 1 ──────────────────────────────────────────────────────────
   const ingest1 = await ingestKakaoExport(db, { bytes, filename: "verify" });
@@ -106,13 +146,15 @@ async function main() {
 
   if (showPayload) {
     console.log(`\n== sanitized payloads that ${useLlm ? "will be" : "would be"} sent (first ${Math.min(ambiguous.length, limit || 10)}) ==`);
-    for (const m of ambiguous.slice(0, limit || 10)) console.log(JSON.stringify(buildLlmPayload({ message: m, referenceTime: m.sentAt }).payload));
+    const shown = ambiguous.slice(0, limit || 10);
+    if (batchSize > 1) for (const unit of planLlmUnits(shown, batchSize)) console.log(JSON.stringify(buildBatchPayload(unit.map((m) => ({ message: m, referenceTime: m.sentAt })))));
+    else for (const m of shown) console.log(JSON.stringify(buildLlmPayload({ message: m, referenceTime: m.sentAt }).payload));
   }
 
   let paused: string | null = null;
   const byExtractor: Record<string, number> = {};
   for (;;) {
-    const batch = await extractPendingBatch(db, extractor, 50);
+    const batch = await extractPendingBatch(db, extractor, 50, { batchSize, concurrency });
     for (const [k, v] of Object.entries(batch.byExtractor)) byExtractor[k] = (byExtractor[k] ?? 0) + v;
     if (batch.paused) paused = batch.paused;
     if (batch.paused || batch.remaining === 0 || batch.processed + batch.failed === 0) break;
@@ -138,8 +180,8 @@ async function main() {
   console.log("ambiguous messages :", ambiguous.length, `(rule-only: ${ingest1.detectedForExtraction - ambiguous.length})`);
   console.log("rule candidates    :", byExtractor.rule ?? 0);
   console.log("heuristic candidates:", byExtractor.heuristic ?? 0);
-  console.log("gemini candidates  :", byExtractor.llm ?? 0);
-  console.log("Gemini API requests:", llmRequests, paused ? `(paused: ${paused})` : "");
+  console.log("llm candidates     :", byExtractor.llm ?? 0);
+  console.log("LLM API requests   :", llmRequests, paused ? `(paused: ${paused})` : "");
   console.log("FAILED             :", failed.length);
   for (const f of failed.slice(0, 10)) console.log("   -", f.sentAt, f.error);
   console.log("by category        :", tally(candidates, (c) => c.category));
@@ -165,7 +207,7 @@ async function main() {
   const pendingBefore = statuses.PENDING_EXTRACTION ?? 0;
   const ingest2 = await ingestKakaoExport(db, { bytes, filename: "verify" });
   // Only meaningful when run 1 finished; if it paused, pending messages legitimately remain.
-  if (!paused) await extractPendingBatch(db, extractor, 50);
+  if (!paused) await extractPendingBatch(db, extractor, 50, { batchSize, concurrency });
   console.log("\n== run 2 (same file) ==");
   console.log("ingest             :", { new: ingest2.newMessages, dup: ingest2.duplicateMessages });
   console.log("extractor calls    :", extractor.calls - callsRun1);
@@ -185,7 +227,9 @@ async function main() {
     check((byExtractor.llm ?? 0) === 0, "no --llm: no LLM candidates");
   } else {
     check(llmRequests <= limit, `external API requests (${llmRequests}) ≤ --limit (${limit})`);
-    check(llmRequests <= ambiguous.length * 2, "only ambiguous messages reached Gemini (≤ 2 requests each)");
+    // one request per unit, plus — only where an answer was doubtful — the single path's ≤ 2 requests per message
+    const units = batchSize > 1 ? planLlmUnits(ambiguous, batchSize).length : 0;
+    check(llmRequests <= units + ambiguous.length * 2, `only ambiguous messages reached the LLM (≤ ${units} batch requests + 2 per message)`);
     check(paused !== null || pendingBefore === 0, "messages beyond the limit stayed PENDING, not FAILED");
   }
 
@@ -195,6 +239,74 @@ async function main() {
     process.exit(1);
   }
   console.log("\nall automatic checks passed — now review the samples above by eye.");
+}
+
+/**
+ * The gate before batching becomes a default: the same ambiguous messages, extracted one per request and then
+ * in batches, compared field by field. Prints counts and rates only — never message text or candidate titles.
+ */
+async function compareBatching(bytes: Uint8Array, client: LlmClient & { used: number }, size: number, sample: number) {
+  const parsed = parseKakaoExport((await decodeExportFile(bytes)).text);
+  const roomName = parsed.roomName;
+  const ambiguous = parsed.messages
+    .filter((m) => m.kind === "TEXT")
+    .map((m) => ({ ...m, roomName }))
+    .filter((m) => extractByRules({ message: m, referenceTime: m.sentAt }).needsFallback);
+  // newest first: recent notices are what the app is used for
+  const messages = ambiguous.slice(-sample).reverse();
+  const inputs = messages.map((message) => ({ message, referenceTime: message.sentAt }));
+  console.log(`== compare: ${messages.length} ambiguous messages, 1 per request vs ${size} per request ==`);
+
+  const single = new LlmScheduleExtractor(client);
+  const batch = new LlmBatchScheduleExtractor(client, single);
+  type Shape = { count: number; key: string } | "error" | "paused";
+  const shapeOf = (answer: Awaited<ReturnType<typeof batch.extractMany>>[number]): Shape => {
+    if (answer instanceof Error) return isLlmPauseError(answer) ? "paused" : "error";
+    const rows = answer.candidates.map((c) => [c.action, c.category, c.startAt, c.endAt, c.allDay].join("|")).sort();
+    return { count: rows.length, key: rows.join(";") };
+  };
+
+  let started = Date.now();
+  let before = client.used;
+  const one: Shape[] = [];
+  for (const input of inputs) {
+    try {
+      one.push(shapeOf(await single.extract(input)));
+    } catch (error) {
+      one.push(shapeOf(error instanceof Error ? error : new Error("unknown")));
+      if (isLlmPauseError(error)) break;
+    }
+  }
+  const singleStats = { requests: client.used - before, seconds: Math.round((Date.now() - started) / 1000) };
+
+  started = Date.now();
+  before = client.used;
+  const many: Shape[] = [];
+  const units = planLlmUnits(messages, size);
+  for (const unit of units) {
+    try {
+      many.push(...(await batch.extractMany(unit.map((message) => ({ message, referenceTime: message.sentAt })))).map(shapeOf));
+    } catch (error) {
+      many.push(...unit.map(() => shapeOf(error instanceof Error ? error : new Error("unknown"))));
+      if (isLlmPauseError(error)) break;
+    }
+  }
+  const batchStats = { requests: client.used - before, seconds: Math.round((Date.now() - started) / 1000) };
+
+  const pairs = one.map((a, index) => [a, many[index]] as const).filter((pair): pair is readonly [{ count: number; key: string }, { count: number; key: string }] => typeof pair[0] === "object" && typeof pair[1] === "object");
+  const pct = (n: number) => (pairs.length === 0 ? "n/a" : `${Math.round((n / pairs.length) * 100)}%`);
+  console.log("compared messages        :", pairs.length, `(of ${messages.length}; the rest errored or hit a limit in one of the two runs)`);
+  console.log("1 per request            :", singleStats);
+  console.log(`${size} per request            :`, { ...batchStats, batchRequests: units.length, fallbackRequests: Math.max(0, batchStats.requests - units.length) });
+  console.log("same number of candidates:", pct(pairs.filter(([a, b]) => a.count === b.count).length));
+  console.log("identical action/category/start/end/allDay for every candidate:", pct(pairs.filter(([a, b]) => a.key === b.key).length));
+  console.log("messages with candidates (1 per request / batched):", pairs.filter(([a]) => a.count > 0).length, "/", pairs.filter(([, b]) => b.count > 0).length);
+  console.log(
+    size === 1
+      ? "\nthis is the BASELINE: how much two one-per-request runs differ by themselves (the model is not deterministic)."
+      : "\nread these rates against the baseline (--compare-batch 1 on the same sample), not against 100%:\n" +
+          "batching is fine when it stays within a few points of the baseline and fallback requests stay ≤ 10% of messages.",
+  );
 }
 
 main().catch((error) => {

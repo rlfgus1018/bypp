@@ -19,4 +19,10 @@ export interface ScheduleExtractor {
    * Lets the pipeline keep working on clear messages while the LLM is rate limited.
    */
   extractLocally?(input: ExtractionInput): ExtractionOutcome | null;
+  /**
+   * Optional: several messages in one go (one LLM request for many). The result has the same order and length
+   * as the input. An Error entry is that message's own failure — or a pause error (rate limit, outage, budget),
+   * which means "leave this message pending". A pause that hits the whole batch may also be thrown.
+   */
+  extractMany?(inputs: ExtractionInput[]): Promise<Array<ExtractionOutcome | Error>>;
 }

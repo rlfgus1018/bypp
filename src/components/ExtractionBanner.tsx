@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useExtraction } from "./ExtractionProvider";
 
-const PAUSE_LABEL = { "rate-limit": "Gemini 분당 한도로 중단됨", "daily-limit": "Gemini 일일 한도로 중단됨", budget: "요청 상한으로 중단됨", unavailable: "Gemini 연결 불가로 중단됨" } as const;
+const PAUSE_LABEL = { "rate-limit": "LLM 요청 한도로 중단됨", "daily-limit": "LLM 일일 한도로 중단됨", budget: "요청/크레딧 상한으로 중단됨", unavailable: "LLM 연결 불가로 중단됨" } as const;
 
 /** Compact extraction status for every page except the upload page, which shows the full panel. */
 export function ExtractionBanner() {
@@ -23,7 +23,7 @@ export function ExtractionBanner() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2">
           {running && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" aria-hidden />}
-          <span className="font-medium">{running ? "일정 추출 진행 중…" : resumeAt ? (run.paused === "unavailable" ? "Gemini 연결 불가 — 잠시 후 자동 재시도" : "Gemini 분당 한도 — 잠시 후 자동 재개") : run.paused ? PAUSE_LABEL[run.paused] : "추출이 끝나지 않았습니다"}</span>
+          <span className="font-medium">{running ? "일정 추출 진행 중…" : resumeAt ? (run.paused === "unavailable" ? "LLM 연결 불가 — 잠시 후 자동 재시도" : "LLM 요청 한도 — 잠시 후 자동 재개") : run.paused ? PAUSE_LABEL[run.paused] : "추출이 끝나지 않았습니다"}</span>
           <span className="tabular-nums text-slate-500">
             {done.toLocaleString()} / {total.toLocaleString()} ({percent}%)
             {run.candidates > 0 ? ` · 이번 실행 후보 +${run.candidates.toLocaleString()}` : ""}

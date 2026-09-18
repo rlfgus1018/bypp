@@ -14,6 +14,36 @@ export interface LlmClient {
   generateJson(request: LlmJsonRequest): Promise<unknown>;
 }
 
+/** Per-extractor-instance counters. They contain numbers only and are safe to return to the UI. */
+export type LlmRuntimeMetrics = { requests: number; invalidJsonResponses: number };
+
+/** Counts actual provider calls and malformed JSON responses without retaining prompts or responses. */
+export class MeasuredLlmClient implements LlmClient {
+  constructor(
+    private readonly inner: LlmClient,
+    public readonly metrics: LlmRuntimeMetrics,
+  ) {}
+
+  get model(): string {
+    return this.inner.model;
+  }
+
+  async generateJson(request: LlmJsonRequest): Promise<unknown> {
+    this.metrics.requests += 1;
+    try {
+      return await this.inner.generateJson(request);
+    } catch (error) {
+      if (
+        (error instanceof LlmInvalidOutputError && /invalid_json$/.test(error.message)) ||
+        (error instanceof LlmUnavailableError && /invalid_json$/.test(error.detail))
+      ) {
+        this.metrics.invalidJsonResponses += 1;
+      }
+      throw error;
+    }
+  }
+}
+
 /** HTTP 429 / quota. Not a failure of the message: the batch pauses and the message stays pending. */
 export class LlmRateLimitError extends Error {
   /**
@@ -54,6 +84,14 @@ export class LlmBudgetExceededError extends Error {
   }
 }
 
+/** The provider rejected the request because the account has no usable credit/budget. */
+export class LlmProviderBudgetError extends Error {
+  constructor() {
+    super("LLM provider credit or budget exhausted");
+    this.name = "LlmProviderBudgetError";
+  }
+}
+
 /** The model answered, but not with parseable JSON. Treated like a schema validation failure. */
 export class LlmInvalidOutputError extends Error {
   constructor(message: string) {
@@ -63,6 +101,6 @@ export class LlmInvalidOutputError extends Error {
 }
 
 /** Errors that mean "stop the batch, keep the message pending" rather than "this message failed". */
-export function isLlmPauseError(error: unknown): error is LlmRateLimitError | LlmBudgetExceededError | LlmUnavailableError {
-  return error instanceof LlmRateLimitError || error instanceof LlmBudgetExceededError || error instanceof LlmUnavailableError;
+export function isLlmPauseError(error: unknown): error is LlmRateLimitError | LlmBudgetExceededError | LlmProviderBudgetError | LlmUnavailableError {
+  return error instanceof LlmRateLimitError || error instanceof LlmBudgetExceededError || error instanceof LlmProviderBudgetError || error instanceof LlmUnavailableError;
 }

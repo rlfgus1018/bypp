@@ -27,12 +27,13 @@ export async function POST(request: Request) {
 
   // One batch at a time per process. A second caller (another tab, a reload while a slow LLM batch
   // is still running) waits its turn instead of sending the same messages to the LLM twice.
-  const run = queue.__byppExtraction.then(() => {
+  const run = queue.__byppExtraction.then(async () => {
     const db = getDb();
     if (body.retryFailed === true) messagesRepo(db).resetFailed();
     // Any LLM call happens here, on the server. The browser only ever sees this JSON.
-    const { extractor } = createScheduleExtractor();
-    return extractPendingBatch(db, extractor, limit, { maxMs: BATCH_TIME_BOX_MS });
+    const { extractor, llm, metrics } = createScheduleExtractor();
+    const result = await extractPendingBatch(db, extractor, limit, { maxMs: BATCH_TIME_BOX_MS, batchSize: llm?.batchSize ?? 1, concurrency: llm?.concurrency ?? 1 });
+    return { ...result, llmRequests: metrics?.requests ?? 0, invalidJsonResponses: metrics?.invalidJsonResponses ?? 0 };
   });
   queue.__byppExtraction = run.catch(() => undefined);
   return Response.json(await run);
