@@ -39,6 +39,7 @@ export function GoogleSyncSection({ eventId, view, syncedAtText }: { eventId: st
       )}
       {view.problem && !pending && <p className="mt-1 text-xs text-red-700">{view.problem}</p>}
       {view.blockedBy && view.state !== "created" && !pending && <p className="mt-1 text-xs text-slate-600">{view.blockedBy}</p>}
+      {view.defaultEndNote && view.state !== "created" && !view.blockedBy && <p className="mt-1 text-xs text-slate-500">{view.defaultEndNote}</p>}
 
       {view.state !== "created" && view.state !== "sending" && (
         <form action={action} className="mt-2">

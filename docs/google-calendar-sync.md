@@ -83,8 +83,16 @@ after the remote event is confirmed; the id every attempt uses is kept separatel
 | `PENDING` | allowed by the schema for a future queue; not written today |
 
 1. The action receives a local event **id** only; title/time/place are re-read from the database.
-2. Refusals that cost no API call: unknown id, notices, no date, **no end time** (no invented duration — also
-   for `DEADLINE`), bad interval, not connected.
+2. Refusals that cost no API call: unknown id, notices, no date, empty title, bad date, bad interval (an
+   explicit end ≤ start, or an all-day event without an end), not connected.
+   **A timed event without an end time** (a meeting, a `DEADLINE`) **is sent** as an ordinary event from start
+   to `start + 60 min` (`DEFAULT_GOOGLE_EVENT_DURATION_MINUTES`, real instant arithmetic, canonical KST — day,
+   month and year roll over). `endTimeUnspecified` is **not** sent: Google rejected such inserts with 400
+   (`bad_request`) in real use (2026-09-19). The one hour is a default, not an inferred end: the local
+   `calendar_events.end_at` stays `NULL`, and an explicit end is always used as given (a wrong one stays
+   blocked, never replaced by the default). Single and bulk send use the same `toGoogleEvent()`; both show
+   "종료 시각 미입력 · Google에는 시작 후 1시간 일정으로 생성됩니다." (bulk: a "종료 미입력" badge and a count in
+   the confirmation). `sent_hash` is unchanged: such an event hashes like one with an explicit one-hour end.
 3. **Claim** in an `IMMEDIATE` transaction: `SYNCED` → "already", live lease → "in progress", otherwise take
    the lease. No transaction is open during network calls.
 4. Any attempt after the first **looks the reserved id up first**. A `409`, a timeout, a network error or a
@@ -97,6 +105,41 @@ after the remote event is confirmed; the id every attempt uses is kept separatel
 7. `sent_hash` records what was sent, so the UI can say "created on Google" vs "edited locally since".
    `account_sub` + `target_calendar_id` record *which* primary calendar; attempts are never continued under a
    different account.
+
+## Bulk send (`/calendar/google`)
+
+Still explicit and per event — just many of them at once, chosen by the user.
+
+- `planBulkSend()` (`bulk-plan.ts`) sorts every local event, from the local database only, into **sendable**
+  (never sent, or an earlier attempt failed / is unresolved), **created**, **blocked** (notice, undated, no end
+  time, bad interval — with the reason) and **sending** (live lease). Rendering the page calls Google zero
+  times and writes nothing. An optional schedule-date range narrows the list (undated events then drop out).
+- The page lists the sendable events grouped by month with checkboxes (all ticked by default; month-level and
+  global tick/untick). Events sharing a slot (same start + category) carry a badge so repeated notices can be
+  unticked. Exclusions apply to that send only and are not stored.
+- After a second confirmation (account, count, "cannot be undone from BYPP"), the client walks through the
+  ticked ids and calls the server action `sendEventsToGoogle(ids)` with **3 ids per call**. The action accepts
+  ids only (max 10, validated), and `sendMany()` (`bulk-send.ts`) calls the very same `createGoogleEvent()`
+  for each — so the deterministic id, the DB claim and look-before-resend apply unchanged. Sending the same
+  list twice, or from two tabs, creates nothing twice; an unticked id is never part of any request.
+- Stopping rules: `needs-reconnect` / `not-connected` → stop at once, the rest is reported as unsent;
+  `rate_limited` → stop, the client waits 60 s and carries on (at most 5 fruitless waits); any other failure
+  affects that event only. The user can pause between calls; finished events stay `SYNCED`, so reopening the
+  page simply offers what is left.
+
+### Scope: important only (default)
+
+- `/calendar/google` opens on `?scope=important`; `?scope=all` is the whole calendar. Any other value is
+  refused (nothing listed, nothing sendable) — it never widens to "all".
+- `planBulkSend(db, now, range, scope)` filters by `calendarEventsRepo.importantIds()` — the same SQL predicate
+  the lists use (override, else a keyword in the event's **current** title). The tab counts `[★ 중요만 N]
+  [전체 M]` are **sendable** counts, not "all important events": already-created, blocked and in-flight events
+  are not counted; the breakdown line shows them.
+- `sendEventsToGoogle(ids, scope)` validates the scope with zod, and `sendMany(deps, ids, { scope })` re-checks
+  `isImportant(id)` right before each create. An event that stopped being important since the page was shown
+  is reported as `skipped` ("건너뜀: 중요 아님") and costs **no** Google request.
+- Importance only chooses what may be sent **new**. When an event stops being important after it was sent,
+  nothing happens on Google: no delete, no unsync, and its `calendar_syncs` row (external id, history) stays.
 
 ## Later edits and deletes
 
@@ -124,5 +167,7 @@ disconnect/revoke UI (revoke at <https://myaccount.google.com/permissions>).
 3. Open an event that has a start and an end → **Google에 일정 생성** → "Google에 생성됨" + time; check Google
    Calendar: same title/time/place, no description, no guests.
 4. Press nothing twice: the button is gone. Edit the event locally → "로컬에서 수정 … 반영되지 않았습니다".
-5. An event without an end time, or a 변경/취소 공지, shows why it cannot be sent.
+5. A 변경/취소 공지 shows why it cannot be sent. An event with a start but no end time can be sent: the panel
+   says "종료 시각 미입력 · Google에는 시작 후 1시간 일정으로 생성됩니다."; on Google it is a one-hour event, and
+   BYPP still shows it without an end.
 6. Restart the dev server → still connected.

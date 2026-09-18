@@ -2,7 +2,7 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Db } from "@/lib/db/client";
 import { calendarSyncsRepo } from "@/lib/db/repositories/calendar-syncs";
 import type { ConnectionView } from "./connection";
-import { NOT_SYNCABLE_TEXT, toGoogleEvent } from "./event-mapper";
+import { DEFAULT_END_TEXT, NOT_SYNCABLE_TEXT, toGoogleEvent } from "./event-mapper";
 import type { SyncErrorCode } from "./sync-service";
 
 // What the UI shows about one event's Google state. Built only from the local DB — rendering never calls
@@ -20,6 +20,8 @@ export type SyncView = {
   blockedBy: string | null;
   canSend: boolean;
   buttonLabel: string;
+  /** set when the event has no end time: Google gets start + the default duration (a side note, not a block) */
+  defaultEndNote: string | null;
 };
 
 const ERROR_TEXT: Record<SyncErrorCode | "unknown_outcome", string> = {
@@ -45,7 +47,15 @@ const CONNECTION_BLOCK: Record<Exclude<ConnectionView["state"], "connected">, st
 export function getSyncView(db: Db, event: CalendarEvent, connection: ConnectionView, nowMs: number): SyncView {
   const sync = calendarSyncsRepo(db).find(event.id);
   const mapped = toGoogleEvent(event);
-  const base = { syncedAt: null, editedSince: false, problem: null, blockedBy: null, canSend: false, buttonLabel: "Google에 일정 생성" };
+  const base = {
+    syncedAt: null,
+    editedSince: false,
+    problem: null,
+    blockedBy: null,
+    canSend: false,
+    buttonLabel: "Google에 일정 생성",
+    defaultEndNote: mapped.ok && mapped.usedDefaultEnd ? DEFAULT_END_TEXT : null,
+  };
 
   if (sync?.status === "SYNCED") {
     // Created once; later local edits are deliberately NOT pushed (no UPDATE in this milestone).

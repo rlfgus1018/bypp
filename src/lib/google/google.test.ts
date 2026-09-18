@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +19,7 @@ import { HybridExtractor } from "@/lib/schedule/hybrid-extractor";
 import { GoogleApiError, type GoogleApiErrorKind, type GoogleCalendarApi, type RemoteEvent } from "./calendar-api";
 import { CALENDAR_SCOPE, readGoogleConfig, readTokenKey } from "./config";
 import { beginConnection, completeConnection, getConnectionView, STATE_TTL_SECONDS } from "./connection";
-import { googleEventIdFor, toGoogleEvent, type GoogleEventBody } from "./event-mapper";
+import { DEFAULT_GOOGLE_EVENT_DURATION_MINUTES, googleEventIdFor, hashBody, toGoogleEvent, type GoogleEventBody } from "./event-mapper";
 import { RealGoogleOAuthClient } from "./google-oauth-client";
 import { GoogleAuthError, type GoogleAuthErrorCode, type GoogleOAuthClient, type RefreshedToken, type TokenSet } from "./oauth-client";
 import { createGoogleEvent, type SyncDeps } from "./sync-service";
@@ -377,13 +378,87 @@ describe("event mapper (pure, Local CalendarEvent only)", () => {
     expect(reason({ kind: "UPDATE_NOTICE" })).toBe("notice");
     expect(reason({ kind: "CANCEL_NOTICE" })).toBe("notice");
     expect(reason({ startAt: null, endAt: null })).toBe("undated");
-    expect(reason({ endAt: null })).toBe("no-end"); // no invented 30 min / 1 h
-    expect(reason({ category: "DEADLINE", endAt: null })).toBe("no-end");
-    expect(reason({ endAt: kst("2026-09-22", "18:00") })).toBe("bad-interval");
+    expect(reason({ endAt: null })).toBe("ok"); // sent with Google's "end unspecified" (see below)
+    expect(reason({ category: "DEADLINE", endAt: null })).toBe("ok");
+    expect(reason({ allDay: true, startAt: kst("2026-09-22"), endAt: null })).toBe("bad-interval"); // malformed all-day: not repaired
+    expect(reason({ title: "  " })).toBe("no-title");
+    expect(reason({ endAt: kst("2026-09-22", "18:00") })).toBe("bad-interval"); // an explicit wrong end is never replaced by the default
     expect(reason({ endAt: kst("2026-09-22", "17:00") })).toBe("bad-interval");
     expect(reason({ allDay: true, startAt: kst("2026-09-22"), endAt: kst("2026-09-23", "10:00") })).toBe("bad-interval");
     expect(reason({ startAt: "2026-02-30T10:00:00+09:00", endAt: kst("2026-03-02", "11:00") })).toBe("bad-date");
     expect(reason({ startAt: "2026-09-22T09:00:00Z", endAt: "2026-09-22T10:00:00Z" })).toBe("bad-date"); // not canonical KST
+  });
+});
+
+describe("timed events without an end", () => {
+  const mapped = (overrides: Partial<NewCalendarEvent>) => {
+    const result = toGoogleEvent(addEvent(overrides));
+    if (!result.ok) throw new Error(result.reason);
+    return result;
+  };
+
+  it("get an ordinary start + 60 min end (no endTimeUnspecified), across day / month / year boundaries", () => {
+    expect(DEFAULT_GOOGLE_EVENT_DURATION_MINUTES).toBe(60);
+    const cases: [string, string][] = [
+      ["2026-07-06T21:00:00+09:00", "2026-07-06T22:00:00+09:00"],
+      ["2026-07-06T23:30:00+09:00", "2026-07-07T00:30:00+09:00"],
+      ["2026-09-30T23:15:00+09:00", "2026-10-01T00:15:00+09:00"],
+      ["2026-02-28T23:45:00+09:00", "2026-03-01T00:45:00+09:00"],
+      ["2028-02-28T23:45:00+09:00", "2028-02-29T00:45:00+09:00"], // leap year
+      ["2026-12-31T23:00:00+09:00", "2027-01-01T00:00:00+09:00"],
+    ];
+    for (const [startAt, end] of cases) {
+      const { body, usedDefaultEnd } = mapped({ startAt, endAt: null });
+      expect(usedDefaultEnd).toBe(true);
+      expect(body.start).toEqual({ dateTime: startAt, timeZone: "Asia/Seoul" });
+      expect(body.end).toEqual({ dateTime: end, timeZone: "Asia/Seoul" });
+      expect(body).not.toHaveProperty("endTimeUnspecified");
+    }
+    expect(mapped({ category: "DEADLINE", endAt: null }).body.end).toEqual({ dateTime: kst("2026-09-22", "19:00"), timeZone: "Asia/Seoul" });
+  });
+
+  it("an explicit end is used as given and keeps the hash it always had", () => {
+    const explicit = mapped({});
+    expect(explicit.usedDefaultEnd).toBe(false);
+    expect(explicit.body.end).toEqual({ dateTime: kst("2026-09-22", "19:30"), timeZone: "Asia/Seoul" });
+    expect(explicit.body).not.toHaveProperty("endTimeUnspecified");
+    const { summary, location = null, start, end } = explicit.body;
+    expect(explicit.hash).toBe(createHash("sha256").update(JSON.stringify({ summary, location, start, end })).digest("hex")); // the pre-change fingerprint
+  });
+
+  it("the derived body and its hash are the same every time — and the same as an explicit 1-hour end", () => {
+    const event = addEvent({ endAt: null });
+    const first = toGoogleEvent(event);
+    const second = toGoogleEvent(event);
+    expect(first).toEqual(second);
+    if (!first.ok) throw new Error("expected ok");
+    expect(first.hash).toBe(hashBody(first.body));
+    const explicitHour = mapped({ endAt: kst("2026-09-22", "19:00") });
+    expect(explicitHour.body.end).toEqual(first.body.end);
+    expect(explicitHour.hash).toBe(first.hash); // Google receives the very same event either way
+  });
+
+  it("single send: one insert with the derived end; the local event keeps endAt = null; retries never duplicate", async () => {
+    await connect();
+    const event = addEvent({ endAt: null });
+    expect(getSyncView(db, event, getConnectionView(db, true), clock)).toMatchObject({ canSend: true, blockedBy: null, defaultEndNote: expect.stringContaining("시작 후 1시간") });
+    expect(getSyncView(db, addEvent(), getConnectionView(db, true), clock).defaultEndNote).toBeNull();
+
+    expect(await createGoogleEvent(deps(), event.id)).toMatchObject({ result: "synced", externalEventId: googleEventIdFor(event.id) });
+    expect(api.inserts).toHaveLength(1);
+    expect(api.inserts[0].body.end).toEqual({ dateTime: kst("2026-09-22", "19:00"), timeZone: "Asia/Seoul" });
+    expect(api.inserts[0].body).not.toHaveProperty("endTimeUnspecified");
+    expect(calendarEventsRepo(db).findById(event.id)?.endAt).toBeNull();
+
+    expect(await createGoogleEvent(deps(), event.id)).toMatchObject({ result: "already-synced" });
+    expect(api.inserts).toHaveLength(1);
+    expect(getSyncView(db, calendarEventsRepo(db).findById(event.id)!, getConnectionView(db, true), clock)).toMatchObject({ state: "created", editedSince: false });
+
+    const twin = addEvent({ endAt: null });
+    api.insertDelayMs = 30;
+    const results = await Promise.all([createGoogleEvent(deps(), twin.id), createGoogleEvent(deps(), twin.id)]);
+    expect(results.map((r) => r.result).sort()).toEqual(["in-progress", "synced"]);
+    expect(api.inserts.filter((insert) => insert.body.id === googleEventIdFor(twin.id))).toHaveLength(1);
   });
 });
 
@@ -442,15 +517,14 @@ describe("CREATE, once", () => {
     expect((await createGoogleEvent(deps(), manual.id)).result).toBe("synced");
   });
 
-  it("refuses without calling Google: notices, no date, no end, bad interval, unknown id", async () => {
-    const cases = [addEvent({ kind: "UPDATE_NOTICE" }), addEvent({ kind: "CANCEL_NOTICE" }), addEvent({ startAt: null, endAt: null }), addEvent({ endAt: null }), addEvent({ endAt: kst("2026-09-22", "17:00") })];
+  it("refuses without calling Google: notices, no date, bad interval, unknown id", async () => {
+    const cases = [addEvent({ kind: "UPDATE_NOTICE" }), addEvent({ kind: "CANCEL_NOTICE" }), addEvent({ startAt: null, endAt: null }), addEvent({ endAt: kst("2026-09-22", "17:00") })];
     const reasons = [];
     for (const event of cases) reasons.push(await createGoogleEvent(deps(), event.id));
     expect(reasons).toEqual([
       { result: "not-syncable", reason: "notice" },
       { result: "not-syncable", reason: "notice" },
       { result: "not-syncable", reason: "undated" },
-      { result: "not-syncable", reason: "no-end" },
       { result: "not-syncable", reason: "bad-interval" },
     ]);
     expect(await createGoogleEvent(deps(), "no-such-event")).toEqual({ result: "not-found" });
