@@ -37,6 +37,8 @@ export type ReviewView = {
   keywords: ImportantKeyword[];
   /** candidate id → why it is (or is not) important, for the cards shown */
   reasons: Map<string, ImportanceReason>;
+  /** chat key → its important candidates, any status and search (the chat side panel) */
+  importantByGroup: Map<string, number>;
 };
 
 /**
@@ -83,5 +85,7 @@ export function loadReview(db: Db, values: FilterValues, tab: TabKey): ReviewVie
   const reasons = new Map(sections.flatMap((section) => section.shown.map((candidate) => [candidate.id, reasonOf(candidate)] as const)));
 
   const duplicateCount = tab === "APPROVED" || all.length === 0 ? 0 : planBulkApproval(db, values, tab, scope).duplicates.length;
-  return { groups, scope, counts, matched: all.length, sections, duplicateCount, scopeCounts, keywords, reasons };
+  // One query per chat: there are only a handful.
+  const importantByGroup = new Map(groups.map((group) => [group.key, repo.listIds({ sources: group.tuples, importance: "important" }).length] as const));
+  return { groups, scope, counts, matched: all.length, sections, duplicateCount, scopeCounts, keywords, reasons, importantByGroup };
 }

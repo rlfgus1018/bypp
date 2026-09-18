@@ -18,7 +18,7 @@ export function CalendarSourceFilter({
   const chosen = new Set(selected);
   const toggle = (key: string) => (chosen.has(key) ? selected.filter((k) => k !== key) : [...selected, key]);
   const chip = (active: boolean, important = false) =>
-    `rounded-full px-3 py-1 ${
+    `rounded-full px-3 py-1.5 text-[12.5px] ${
       active
         ? important
           ? "bg-amber-500 text-white"
@@ -27,8 +27,8 @@ export function CalendarSourceFilter({
     }`;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="출처 필터">
-      <span className="text-xs text-slate-500">출처</span>
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="출처 필터">
+      <span className="mr-0.5 text-xs text-ink-600">출처</span>
       <Link href={hrefFor([])} className={chip(selected.length === 0)} aria-pressed={selected.length === 0}>
         전체
       </Link>
@@ -40,10 +40,10 @@ export function CalendarSourceFilter({
           aria-pressed={chosen.has(key)}
           title={chosen.has(key) ? "누르면 선택 해제" : "누르면 이 출처의 일정도 표시"}
         >
-          {title} <span className="tabular-nums opacity-70">{count.toLocaleString()}</span>
+          {title} <span className="font-display opacity-70">{count.toLocaleString()}</span>
         </Link>
       ))}
-      {selected.length > 0 && <span className="text-xs text-slate-500">선택한 출처 중 하나라도 해당하는 일정만 표시 중</span>}
+      {selected.length > 0 && <span className="basis-full text-right text-[11.5px] text-ink-500">선택한 출처 중 하나라도 해당하는 일정만 표시 중</span>}
     </div>
   );
 }

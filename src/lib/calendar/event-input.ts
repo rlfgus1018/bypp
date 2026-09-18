@@ -19,8 +19,8 @@ export type EventFormValues = {
   category?: string;
 };
 
-/** Form labels for the categories, in the order the select shows them. */
-export const CATEGORY_LABELS: Record<ScheduleCategory, string> = { EVENT: "행사", MEETING: "회의", DEADLINE: "마감", PERIOD: "기간", UNKNOWN: "기타" };
+/** Form labels for the categories (shared with badges and chips). */
+export { CATEGORY_LABELS } from "@/lib/schedule/labels";
 
 export type EventInputResult = { ok: true; changes: CalendarEventChanges } | { ok: false; errors: string[] };
 

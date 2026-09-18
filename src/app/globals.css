@@ -1,7 +1,64 @@
 @import "tailwindcss";
 
+/*
+ * ARK:U design tokens (design project "BYPP 시안", turn 4).
+ *   navy   — header, dark panels, primary actions
+ *   ark    — the sky-blue accent (active nav, progress, highlights)
+ *   ink    — secondary / muted text on light surfaces
+ *   mist   — text on navy surfaces
+ * Status colours keep their meaning from the rest of the app: emerald = approved / on Google,
+ * amber = ★ important, red = destructive / error.
+ */
+@theme {
+  --font-sans: var(--font-plex), system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-display: var(--font-chakra), var(--font-plex), ui-monospace, monospace;
+
+  --color-navy-950: #0e1b38;
+  --color-navy-700: #1b4a7a;
+  --color-ark-300: #7fd2ff;
+  --color-ark-500: #2f9ae0;
+  --color-ark-700: #1b6fa8;
+  --color-ark-900: #10486f;
+  --color-ink-600: #41597e;
+  --color-ink-500: #5d7599;
+  --color-mist-100: #dce9f6;
+  --color-mist-300: #9fc7e8;
+}
+
 body {
-  background: #f8fafc;
-  color: #0f172a;
-  font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  background: var(--color-slate-50);
+  color: var(--color-slate-900);
+}
+
+/* Numbers, dates and codes use the display face (tabular by default). */
+.font-display {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The small bracket in a card's top-left corner. */
+.hud-corner {
+  position: relative;
+}
+.hud-corner::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  width: 13px;
+  height: 13px;
+  border-left: 2px solid var(--color-ark-500);
+  border-top: 2px solid var(--color-ark-500);
+  border-top-left-radius: 8px;
+  pointer-events: none;
+}
+
+/* A faint grid over navy gradients. */
+.hud-grid {
+  background-image: linear-gradient(rgb(255 255 255 / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ark-500);
+  outline-offset: 2px;
 }

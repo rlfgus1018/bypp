@@ -67,8 +67,7 @@ export default async function GoogleBulkSendPage({
   const field = "rounded border border-slate-300 bg-white px-2 py-1";
 
   return (
-    // Same wider column as the calendar itself.
-    <div className="space-y-4 lg:-mx-28">
+    <div className="space-y-4">
       <div>
         <Link href="/calendar" className="text-sm text-slate-600 underline">
           ← 캘린더로

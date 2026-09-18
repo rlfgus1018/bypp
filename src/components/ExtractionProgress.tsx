@@ -116,90 +116,86 @@ export function ExtractionProgress({
   const sinceUpdate = lastUpdateAt ? Math.max(0, Math.round((now - lastUpdateAt) / 1000)) : null;
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="flex items-center gap-2 font-semibold">
-          {running && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" aria-hidden />}
-          일정 추출 {running ? "진행 중…" : overall.pending === 0 ? "완료" : waiting ? (run.paused === "unavailable" ? "대기 중 (LLM 연결 불가)" : "대기 중 (요청 한도)") : "중단됨"}
+    <section className="rounded-lg bg-navy-950 p-4 text-sm text-white sm:px-[18px]" aria-label="일정 추출 진행">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          {running && <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/25 border-t-ark-300" aria-hidden />}
+          일정 추출 {running ? "중" : overall.pending === 0 ? "완료" : waiting ? (run.paused === "unavailable" ? "대기 중 (LLM 연결 불가)" : "대기 중 (요청 한도)") : "중단됨"}
         </h2>
-        <span className="tabular-nums text-slate-500">
-          {done.toLocaleString()} / {total.toLocaleString()} ({percent}%)
-        </span>
+        {running && (
+          <span className="text-xs text-mist-300" aria-live="polite">
+            경과 {elapsed}초 · 마지막 응답 {sinceUpdate === null ? "대기 중" : `${sinceUpdate}초 전`}
+            {llmEnabled && sinceUpdate !== null && sinceUpdate >= 5 ? " · LLM 응답을 기다리는 중 (메시지당 수 초~30초)" : ""}
+          </span>
+        )}
+        <span className="ml-auto font-display text-sm font-bold text-ark-300">{percent}%</span>
       </div>
-      <div
-        className="mt-2 h-2 overflow-hidden rounded bg-slate-100"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={done}
-      >
-        <div className={`h-full bg-slate-900 transition-all ${running ? "animate-pulse" : ""}`} style={{ width: `${percent}%` }} />
+      <div className="mt-2.5 h-2 overflow-hidden rounded-sm bg-white/15" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+        <div className={`h-full bg-gradient-to-r from-ark-500 to-ark-300 transition-all ${running ? "animate-pulse" : ""}`} style={{ width: `${percent}%` }} />
       </div>
 
-      {running && (
-        <p className="mt-2 text-xs text-slate-500" aria-live="polite">
-          경과 {elapsed}초 · 마지막 응답 {sinceUpdate === null ? "대기 중" : `${sinceUpdate}초 전`}
-          {llmEnabled && sinceUpdate !== null && sinceUpdate >= 5 ? " · LLM 응답을 기다리는 중입니다 (메시지당 수 초~30초)" : ""}
-        </p>
-      )}
-
-      <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
-        <Row label="전체 추출 완료" value={overall.extracted} />
-        <Row label="전체 실패" value={overall.failed} />
+      <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3">
+        <Row label="확인" text={`${done.toLocaleString()} / ${total.toLocaleString()}`} />
         <Row label="남은 메시지" value={overall.pending} />
+        <Row label="전체 실패" value={overall.failed} />
         <Row label="이번 실행 처리" value={run.processed} />
         <Row label="이번 실행 후보" value={run.candidates} />
-        <Row label="LLM 요청 / JSON 오류" text={`${run.llmRequests} / ${run.invalidJsonResponses}`} />
         <Row label="rule / heuristic / llm" text={`${run.byExtractor.rule ?? 0} / ${run.byExtractor.heuristic ?? 0} / ${run.byExtractor.llm ?? 0}`} />
+        {run.llmRequests > 0 && <Row label="LLM 요청 / JSON 오류" text={`${run.llmRequests} / ${run.invalidJsonResponses}`} />}
       </dl>
       {run.important > 0 && (
-        <p className="mt-2 text-amber-900">
-          ★ 이번에 생성된 중요 일정 후보 <strong className="tabular-nums">{run.important.toLocaleString()}</strong>건{" "}
-          <Link href="/candidates?status=PENDING&importance=important" className="underline">
+        <p className="mt-2.5 text-xs text-amber-300">
+          ★ 이번에 생성된 중요 일정 후보 <strong className="font-display text-white">{run.important.toLocaleString()}</strong>건{" "}
+          <Link href="/candidates?status=PENDING&importance=important" className="text-ark-300 underline underline-offset-2">
             중요 후보 보기 →
           </Link>
         </p>
       )}
 
       {log.length > 0 && (
-        <ol className="mt-3 max-h-40 space-y-0.5 overflow-y-auto rounded bg-slate-50 p-2 font-mono text-xs text-slate-600">
-          {log.map((entry) => (
-            <li key={entry.at}>
-              <span className="text-slate-400">{clock(entry.at)}</span> {describeBatch(entry)}
-            </li>
-          ))}
-        </ol>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs text-mist-300">처리 기록 {log.length}건</summary>
+          <ol className="mt-2 max-h-40 space-y-0.5 overflow-y-auto rounded bg-white/5 p-2 font-mono text-xs text-mist-100">
+            {log.map((entry) => (
+              <li key={entry.at}>
+                <span className="text-mist-300">{clock(entry.at)}</span> {describeBatch(entry)}
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
 
       {waiting && run.paused === "unavailable" ? (
-        <p className="mt-3 rounded bg-amber-50 p-2 text-amber-900" aria-live="polite">
-          {describeUnavailable(run.unavailable)} <strong className="tabular-nums">{resumeIn}초</strong> 뒤 자동으로 다시 시도합니다.
+        <p className="mt-3 rounded border border-amber-300/40 bg-amber-300/10 p-2 text-xs text-amber-100" aria-live="polite">
+          {describeUnavailable(run.unavailable)} <strong className="font-display">{resumeIn}초</strong> 뒤 자동으로 다시 시도합니다.
         </p>
       ) : waiting ? (
-        <p className="mt-3 rounded bg-sky-50 p-2 text-sky-900" aria-live="polite">
-          LLM API 요청 한도에 도달했습니다. <strong className="tabular-nums">{resumeIn}초</strong> 뒤 자동으로 이어서 추출합니다. 그동안 LLM이
-          필요 없는 메시지는 이미 처리해 두었습니다. 이 창을 열어 두세요.
+        <p className="mt-3 rounded border border-ark-300/40 bg-ark-300/10 p-2 text-xs text-mist-100" aria-live="polite">
+          LLM API 요청 한도에 도달했습니다. <strong className="font-display text-white">{resumeIn}초</strong> 뒤 자동으로 이어서 추출합니다. 그동안 LLM이 필요 없는
+          메시지는 이미 처리해 두었습니다. 이 창을 열어 두세요.
         </p>
       ) : (
         !running &&
         run.paused && (
-          <p className="mt-3 rounded bg-amber-50 p-2 text-amber-800">{run.paused === "unavailable" ? describeUnavailable(run.unavailable) : PAUSE_TEXT[run.paused]}</p>
+          <p className="mt-3 rounded border border-amber-300/40 bg-amber-300/10 p-2 text-xs text-amber-100" role="status">
+            {run.paused === "unavailable" ? describeUnavailable(run.unavailable) : PAUSE_TEXT[run.paused]}
+          </p>
         )
       )}
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap justify-end gap-2 text-xs">
         {running && (
-          <button onClick={onStop} disabled={stopping} className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-50">
+          <button onClick={onStop} disabled={stopping} className="rounded-[3px] border border-ark-300/50 px-2.5 py-1 text-ark-300 hover:bg-white/5 disabled:opacity-50">
             {stopping ? "현재 배치가 끝나면 멈춥니다…" : "일시정지"}
           </button>
         )}
         {!running && (overall.pending > 0 || overall.failed > 0) && (
-          <button onClick={onResume} className="rounded border border-slate-300 px-3 py-1.5">
+          <button onClick={onResume} className="rounded-[3px] border border-ark-300/50 px-2.5 py-1 text-ark-300 hover:bg-white/5">
             {waiting ? "지금 바로 재시도" : overall.failed > 0 ? "실패 건 포함 다시 시도" : "이어서 추출"}
           </button>
         )}
         {waiting && (
-          <button onClick={onStop} className="rounded border border-slate-300 px-3 py-1.5">
+          <button onClick={onStop} className="rounded-[3px] border border-white/25 px-2.5 py-1 text-mist-100 hover:bg-white/5">
             자동 재개 취소
           </button>
         )}
@@ -211,8 +207,8 @@ export function ExtractionProgress({
 function Row({ label, value, text }: { label: string; value?: number; text?: string }) {
   return (
     <div className="flex justify-between gap-2">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="font-medium tabular-nums">{text ?? (value ?? 0).toLocaleString()}</dd>
+      <dt className="text-mist-300">{label}</dt>
+      <dd className="font-display font-medium text-white">{text ?? (value ?? 0).toLocaleString()}</dd>
     </div>
   );
 }

@@ -22,7 +22,7 @@ export const isImportantReason = (reason: ImportanceReason) => reason.type === "
 export function ImportanceBadge({ reason }: { reason: ImportanceReason }) {
   if (!isImportantReason(reason)) return null;
   return (
-    <span className="rounded bg-amber-100 px-2 py-0.5 font-medium text-amber-900" title="중요 일정">
+    <span className="rounded-[3px] bg-amber-100 px-2 py-0.5 text-[11.5px] font-semibold text-amber-900" title="중요 일정">
       ★ 중요 <span className="font-normal">· {reasonText(reason)}</span>
     </span>
   );
@@ -33,29 +33,41 @@ export function ImportanceButtons({
   reason,
   action,
   extraFields = {},
+  layout = "inline",
 }: {
   id: string;
   reason: ImportanceReason;
   action: (formData: FormData) => void | Promise<void>;
   /** hidden fields the action needs besides id / importance (e.g. the calendar view to return to); arrays repeat */
   extraFields?: Record<string, string | string[]>;
+  /** "stack": full-width buttons for a card's action column */
+  layout?: "inline" | "stack";
 }) {
-  const button = (value: "important" | "not_important" | "auto", label: string) => (
-    <form action={action}>
+  const important = isImportantReason(reason);
+  const button = (value: "important" | "not_important" | "auto", label: string, tone: "amber" | "plain" | "link") => (
+    <form action={action} className={layout === "stack" ? "w-full" : undefined}>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="importance" value={value} />
       <HiddenFields fields={extraFields} />
-      <button type="submit" className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">
+      <button
+        type="submit"
+        className={`${layout === "stack" ? "w-full" : ""} rounded ${
+          tone === "link"
+            ? "px-1 py-0.5 text-[11.5px] text-ink-500 underline-offset-2 hover:underline"
+            : tone === "amber"
+              ? "border border-amber-500 px-2.5 py-1.5 text-xs text-amber-800 hover:bg-amber-50"
+              : "border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+        }`}
+      >
         {label}
       </button>
     </form>
   );
   const overridden = reason.type === "override-important" || reason.type === "override-not-important";
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      {reason.type !== "override-important" && button("important", "☆ 중요로")}
-      {reason.type !== "override-not-important" && isImportantReason(reason) && button("not_important", "중요 아님")}
-      {overridden && button("auto", reason.type === "override-not-important" ? "제외 해제 (자동)" : "자동으로 되돌리기")}
+    <div className={layout === "stack" ? "flex flex-col items-stretch gap-1" : "flex flex-wrap items-center gap-1"}>
+      {important ? button("not_important", "중요 해제", "amber") : button("important", "☆ 중요 지정", "plain")}
+      {overridden && button("auto", reason.type === "override-not-important" ? "제외 해제 (자동)" : "자동으로 되돌리기", "link")}
     </div>
   );
 }

@@ -31,16 +31,16 @@ export function CalendarEventForm({
         (Array.isArray(value) ? value : [value]).map((item, index) => <input key={`${name}-${index}`} type="hidden" name={name} value={item} />),
       )}
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-slate-500">제목</span>
+        <span className="text-xs text-ink-500">제목</span>
         <input name="title" defaultValue={initial.title} required maxLength={200} className={field} />
       </label>
       <div className="flex flex-wrap gap-2">
         <label className="flex min-w-48 flex-1 flex-col gap-1">
-          <span className="text-xs text-slate-500">장소</span>
+          <span className="text-xs text-ink-500">장소</span>
           <input name="location" defaultValue={initial.location} maxLength={200} className={field} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-500">분류</span>
+          <span className="text-xs text-ink-500">분류</span>
           <select name="category" defaultValue={initial.category ?? "EVENT"} className={field}>
             {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -56,24 +56,24 @@ export function CalendarEventForm({
       </label>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-500">시작 날짜</span>
+          <span className="text-xs text-ink-500">시작 날짜</span>
           <input type="date" name="startDate" defaultValue={initial.startDate} className={field} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-500">시작 시간</span>
+          <span className="text-xs text-ink-500">시작 시간</span>
           <input type="time" name="startTime" defaultValue={initial.startTime} disabled={allDay} className={field} />
         </label>
         <span className="pb-1.5 text-slate-400">~</span>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-500">{allDay ? "마지막 날 (포함)" : "끝 날짜"}</span>
+          <span className="text-xs text-ink-500">{allDay ? "마지막 날 (포함)" : "끝 날짜"}</span>
           <input type="date" name="endDate" defaultValue={initial.endDate} className={field} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-500">끝 시간</span>
+          <span className="text-xs text-ink-500">끝 시간</span>
           <input type="time" name="endTime" defaultValue={initial.endTime} disabled={allDay} className={field} />
         </label>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-500">
         시작 날짜를 비우면 &ldquo;날짜 미확정&rdquo;이 됩니다. 끝을 모르면 끝 날짜·끝 시간을 비워 두세요.
         {id ? " 여기서 고친 내용은 캘린더 일정에만 반영되고 추출된 후보는 그대로 남습니다." : " 직접 추가한 일정은 출처 필터의 “직접 추가”로 모아 볼 수 있습니다."}
       </p>

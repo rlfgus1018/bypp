@@ -15,9 +15,9 @@ const DUPLICATE_OPTIONS: { value: DuplicatePolicy; label: string; detail: string
 
 const LABEL: Record<Target, string> = { APPROVED: "전체 승인", IGNORED: "전체 무시", PENDING: "전체 검토 대기로 되돌리기" };
 const BUTTON: Record<Target, string> = {
-  APPROVED: "bg-emerald-600 text-white",
-  IGNORED: "border border-slate-300 text-slate-700",
-  PENDING: "border border-slate-300 text-slate-700",
+  APPROVED: "border border-emerald-600 bg-white text-emerald-800 hover:bg-emerald-50",
+  IGNORED: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+  PENDING: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
 };
 const EFFECT: Record<Target, string> = {
   APPROVED: "승인 대상입니다. 승인된 후보는 캘린더에 일정으로 추가됩니다.",
@@ -58,12 +58,14 @@ export function BulkActions({
   const approving = asksAboutDuplicates && policy !== "add" ? count - duplicateCount : count;
   const targets = (["APPROVED", "IGNORED", "PENDING"] as Target[]).filter((candidate) => candidate !== tab);
 
+  // Rendered inside the status-tab row (display: contents): the buttons sit at its right end and the
+  // confirmation takes a full line below it.
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-3 text-sm" aria-label="일괄 처리">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-slate-600">
-          <span className="break-words font-medium text-slate-800">{scopeLabel}</span>의 {filtering ? "검색된 " : ""}
-          <strong className="tabular-nums">{count.toLocaleString()}</strong>건 전체를
+    <div className="contents">
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]" role="group" aria-label={`일괄 처리 — ${scopeLabel}의 ${count.toLocaleString()}건`}>
+        <span className="text-xs text-ink-500">
+          {filtering ? "검색된 " : ""}
+          <span className="font-display">{count.toLocaleString()}</span>건 전체
         </span>
         {targets.map((candidate) => (
           <button
@@ -75,7 +77,7 @@ export function BulkActions({
               setPolicy(null);
             }}
             aria-pressed={target === candidate}
-            className={`rounded px-3 py-1.5 font-medium disabled:opacity-50 ${BUTTON[candidate]} ${target === candidate ? "ring-2 ring-slate-900 ring-offset-1" : ""}`}
+            className={`rounded px-3.5 py-1.5 disabled:opacity-50 ${BUTTON[candidate]} ${target === candidate ? "ring-2 ring-slate-900 ring-offset-1" : ""}`}
           >
             {LABEL[candidate]}
           </button>
@@ -83,7 +85,7 @@ export function BulkActions({
       </div>
 
       {target && (
-        <form action={action} className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-amber-900">
+        <form action={action} className="basis-full rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <input type="hidden" name="status" value={tab} />
           <input type="hidden" name="target" value={target} />
           <input type="hidden" name="expected" value={count} />
@@ -149,10 +151,10 @@ export function BulkActions({
       )}
 
       {state.error && (
-        <p className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700" role="alert">
+        <p className="basis-full rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700" role="alert">
           {state.error}
         </p>
       )}
-    </section>
+    </div>
   );
 }

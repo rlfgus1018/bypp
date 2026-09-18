@@ -4,7 +4,7 @@ import { CalendarEventPanel } from "@/components/CalendarEventPanel";
 import { CalendarMonth, chipStyle, kindLabel } from "@/components/CalendarMonth";
 import { CalendarSourceFilter } from "@/components/CalendarSourceFilter";
 import { GoogleConnectionCard } from "@/components/GoogleConnectionCard";
-import { formatDay, formatEventWhen, formatInstant } from "@/lib/calendar/format";
+import { formatClock, formatEventWhen, formatInstant } from "@/lib/calendar/format";
 import { loadCalendarMonth } from "@/lib/calendar/load-month";
 import { dayKey, kstToday, monthKey, nowMs, parseDay, parseMonth, shiftMonth } from "@/lib/calendar/month-grid";
 import { groupImportant, type ImportantGroups } from "@/lib/calendar/important-list";
@@ -12,6 +12,7 @@ import { groupPartnerships } from "@/lib/calendar/partnership";
 import { calendarHref, contextFields, toCalendarTab, type CalendarContext, type CalendarTab } from "@/lib/calendar/return-context";
 import { readSourceParams } from "@/lib/calendar/source-filter";
 import type { CalendarEvent } from "@/lib/calendar/types";
+import { weekdayOf, WEEKDAY_NAMES } from "@/lib/schedule/kst";
 import { getDb } from "@/lib/db/client";
 import { planBulkSend } from "@/lib/google/bulk-plan";
 import { getConnectionView } from "@/lib/google/connection";
@@ -61,45 +62,74 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const sendable = planBulkSend(db, nowMs());
   const importantSendable = planBulkSend(db, nowMs(), undefined, "important");
   const tabClass = (active: boolean) =>
-    `rounded-full px-3 py-1 ${active ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`;
+    `rounded-full px-4 py-1.5 ${active ? "bg-slate-900 font-medium text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`;
+  const navButton = "rounded border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] hover:bg-slate-50";
+
+  const newEvent = one("new") === "1" && (
+    <section className="rounded-lg border border-slate-300 bg-white p-4 text-sm" aria-label="새 일정">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[15px] font-semibold">새 일정 직접 추가</h2>
+        <Link href={hrefFor({ day: selectedDayKey ?? undefined })} className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50">
+          닫기
+        </Link>
+      </div>
+      <div className="mt-2">
+        <CalendarEventForm
+          returnFields={contextFields(context)}
+          initial={{ title: "", location: "", allDay: false, startDate: selectedDayKey ?? "", startTime: "", endDate: "", endTime: "", category: "EVENT" }}
+        />
+      </div>
+    </section>
+  );
+  const detail = view.selected && selectedSync && (
+    <CalendarEventPanel
+      event={view.selected.event}
+      sync={selectedSync}
+      syncedAtText={selectedSync.syncedAt ? formatInstant(selectedSync.syncedAt) : null}
+      sameSlot={view.selected.sameSlot}
+      sourceTitle={view.selected.sourceTitle}
+      returnFields={contextFields(context)}
+      closeHref={hrefFor({ day: selectedDayKey ?? undefined })}
+      hrefFor={hrefFor}
+      importance={view.selected.importance}
+    />
+  );
+  const missing = one("event") && !view.selected && (
+    <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-ink-500">이 일정은 더 이상 캘린더에 없습니다.</p>
+  );
+  const onCalendar = activeTab === "calendar";
+  const side = onCalendar || newEvent || detail || missing;
 
   return (
-    // A month grid needs more room than the reading column the other pages use.
-    <div className="space-y-4 lg:-mx-28">
-      <div>
-        <h1 className="text-xl font-semibold">캘린더</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          일정 후보에서 승인한 일정이 자동으로 들어옵니다. Google 캘린더에는 자동으로 아무것도 보내지 않으며, 일정을 열어 직접 누르거나
-          &ldquo;Google로 한꺼번에 보내기&rdquo;에서 확인한 일정만 한 번 생성됩니다.
-        </p>
+    <div className="flex flex-col gap-3">
+      <p className="text-[12.5px] text-ink-600">
+        승인한 일정이 자동으로 들어옵니다. Google 캘린더에는 자동으로 아무것도 보내지 않으며, 일정을 열어 직접 누르거나 &ldquo;Google로 한꺼번에 보내기&rdquo;에서 확인한
+        일정만 한 번 생성됩니다.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[13px]">
+        <nav className="flex flex-wrap items-center gap-1.5" aria-label="캘린더 보기">
+          <h1 className="sr-only">캘린더</h1>
+          <Link href={hrefFor({ tab: "calendar", day: selectedDayKey ?? undefined })} className={tabClass(onCalendar)} aria-current={onCalendar ? "page" : undefined}>
+            일정
+          </Link>
+          <Link
+            href={hrefFor({ tab: "important" })}
+            className={activeTab === "important" ? "rounded-full bg-amber-500 px-4 py-1.5 font-semibold text-amber-950" : tabClass(false)}
+            aria-current={activeTab === "important" ? "page" : undefined}
+          >
+            ★ 중요 <span className="font-display">{view.important.length.toLocaleString()}</span>
+          </Link>
+          <Link href={hrefFor({ tab: "partnerships" })} className={tabClass(onPartnerships)} aria-current={onPartnerships ? "page" : undefined}>
+            제휴 <span className="font-display opacity-70">{view.partnerships.length.toLocaleString()}</span>
+          </Link>
+        </nav>
+        <div className="flex-1" />
+        <CalendarSourceFilter chips={view.sourceChips} selected={context.src} hrefFor={sourceHref} />
       </div>
-
-      <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="캘린더 보기">
-        <Link
-          href={hrefFor({ tab: "calendar", day: selectedDayKey ?? undefined })}
-          className={tabClass(activeTab === "calendar")}
-          aria-current={activeTab === "calendar" ? "page" : undefined}
-        >
-          일정
-        </Link>
-        <Link
-          href={hrefFor({ tab: "important" })}
-          className={activeTab === "important" ? "rounded-full bg-amber-500 px-3 py-1 text-white" : tabClass(false)}
-          aria-current={activeTab === "important" ? "page" : undefined}
-        >
-          ★ 중요 <span className="tabular-nums opacity-70">{view.important.length.toLocaleString()}</span>
-        </Link>
-        <Link href={hrefFor({ tab: "partnerships" })} className={tabClass(onPartnerships)} aria-current={onPartnerships ? "page" : undefined}>
-          제휴 <span className="tabular-nums opacity-70">{view.partnerships.length.toLocaleString()}</span>
-        </Link>
-        {activeTab === "calendar" && partnerships.active.length > 0 && (
-          <span className="text-xs text-slate-500">
-            진행 중인 제휴 {partnerships.active.length.toLocaleString()}건은 달력에 표시하지 않고 제휴 탭에 모았습니다.
-          </span>
-        )}
-      </nav>
-
-      <CalendarSourceFilter chips={view.sourceChips} selected={context.src} hrefFor={sourceHref} />
+      {onCalendar && partnerships.active.length > 0 && (
+        <p className="-mt-1 text-xs text-ink-500">진행 중인 제휴 {partnerships.active.length.toLocaleString()}건은 달력에 표시하지 않고 제휴 탭에 모았습니다.</p>
+      )}
       {view.sourceFilter === "invalid" && (
         <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
           알 수 없는 출처가 선택되어 있습니다. 주소가 잘못되었거나 그 채팅방의 일정이 더 이상 없습니다. 아무것도 표시하지 않습니다.{" "}
@@ -109,45 +139,33 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         </p>
       )}
 
-      {activeTab === "calendar" && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Link href={hrefFor({ month: monthKey(shiftMonth(month, -1)) })} className="rounded border border-slate-300 bg-white px-3 py-1.5">
-            ‹ 이전 달
-          </Link>
-          <h2 className="min-w-28 text-center text-lg font-semibold tabular-nums">
-            {month.y}년 {month.m}월
-          </h2>
-          <Link href={hrefFor({ month: monthKey(shiftMonth(month, 1)) })} className="rounded border border-slate-300 bg-white px-3 py-1.5">
-            다음 달 ›
-          </Link>
-          <Link href={hrefFor({ month: monthKey(today), day: dayKey(today) })} className="rounded border border-slate-300 bg-white px-3 py-1.5">
-            오늘
-          </Link>
-          <span className="ml-auto text-slate-500">이번 달 일정 {view.monthCount.toLocaleString()}건</span>
+      {onCalendar && (
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <Link href={hrefFor({ month: monthKey(shiftMonth(month, -1)) })} className={navButton}>
+              ‹ 이전 달
+            </Link>
+            <h2 className="min-w-28 text-center text-lg font-semibold">
+              <span className="font-display">{month.y}</span>년 <span className="font-display">{month.m}</span>월
+            </h2>
+            <Link href={hrefFor({ month: monthKey(shiftMonth(month, 1)) })} className={navButton}>
+              다음 달 ›
+            </Link>
+            <Link href={hrefFor({ month: monthKey(today), day: dayKey(today) })} className={navButton}>
+              오늘
+            </Link>
+          </div>
+          <div className="flex-1" />
+          <span className="text-[12.5px] text-ink-600">
+            이번 달 일정 <span className="font-display">{view.monthCount.toLocaleString()}</span>건
+          </span>
           <Link
             href={calendarHref(context, { day: selectedDayKey ?? undefined, extra: { new: "1" } })}
-            className="rounded bg-slate-900 px-3 py-1.5 font-medium text-white"
+            className="rounded bg-slate-900 px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-slate-700"
           >
             + 새 일정
           </Link>
         </div>
-      )}
-
-      {one("new") === "1" && (
-        <section className="rounded-lg border border-slate-300 bg-white p-4 text-sm" aria-label="새 일정">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">새 일정 직접 추가</h2>
-            <Link href={hrefFor({ day: selectedDayKey ?? undefined })} className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-600">
-              닫기
-            </Link>
-          </div>
-          <div className="mt-2">
-            <CalendarEventForm
-              returnFields={contextFields(context)}
-              initial={{ title: "", location: "", allDay: false, startDate: selectedDayKey ?? "", startTime: "", endDate: "", endTime: "", category: "EVENT" }}
-            />
-          </div>
-        </section>
       )}
 
       <GoogleConnectionCard
@@ -157,110 +175,114 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         importantSendableCount={importantSendable.sendable.length}
       />
 
-      {view.selected && selectedSync && (
-        <CalendarEventPanel
-          event={view.selected.event}
-          sync={selectedSync}
-          syncedAtText={selectedSync.syncedAt ? formatInstant(selectedSync.syncedAt) : null}
-          sameSlot={view.selected.sameSlot}
-          returnFields={contextFields(context)}
-          closeHref={hrefFor({ day: selectedDayKey ?? undefined })}
-          hrefFor={hrefFor}
-          importance={view.selected.importance}
-        />
-      )}
-      {one("event") && !view.selected && (
-        <p className="rounded border border-slate-200 bg-white p-3 text-sm text-slate-500">이 일정은 더 이상 캘린더에 없습니다.</p>
-      )}
-
-      {activeTab === "important" ? (
-        <ImportantList
-          groups={important}
-          keywordCount={view.keywordCount}
-          filtering={filtering}
-          syncMarks={syncMarks}
-          hrefFor={(event) => hrefFor({ tab: "important", event })}
-          selectedEventId={view.selected?.event.id ?? null}
-        />
-      ) : onPartnerships ? (
-        <PartnershipList
-          groups={partnerships}
-          filtering={filtering}
-          syncMarks={syncMarks}
-          hrefFor={(event) => hrefFor({ tab: "partnerships", event })}
-          selectedEventId={view.selected?.event.id ?? null}
-        />
-      ) : (
-        <>
-          <CalendarMonth
-            grid={view.grid}
-            placed={view.placed}
-            todayKey={dayKey(today)}
-            selectedDay={selectedDayKey}
-            selectedEventId={view.selected?.event.id ?? null}
-            syncMarks={syncMarks}
-            importantIds={view.importantIds}
-            hrefFor={hrefFor}
-          />
-
-          {day && view.dayEvents && (
-            <EventList
-              title={`${formatDay(day)} 일정 ${view.dayEvents.length}건`}
-              note={
-                view.dayPartnershipCount > 0 ? (
-                  <>
-                    이 날 진행 중인 제휴 {view.dayPartnershipCount.toLocaleString()}건은{" "}
-                    <Link href={hrefFor({ tab: "partnerships" })} className="underline">
-                      제휴 탭
-                    </Link>
-                    에 모아 두었습니다.
-                  </>
-                ) : undefined
-              }
-              events={view.dayEvents}
-              empty={
-                view.dayPartnershipCount > 0
-                  ? "이 날에는 제휴 말고 다른 일정이 없습니다."
-                  : filtering
-                    ? "이 날에는 선택한 출처의 일정이 없습니다."
-                    : "이 날에는 일정이 없습니다."
-              }
-              hrefFor={(event) => hrefFor({ day: selectedDayKey ?? undefined, event })}
+      <div className={`grid gap-3.5 ${side ? "lg:grid-cols-[minmax(0,1fr)_316px]" : ""}`}>
+        <div className="flex min-w-0 flex-col gap-3">
+          {activeTab === "important" ? (
+            <ImportantList
+              groups={important}
+              keywordCount={view.keywordCount}
+              filtering={filtering}
+              syncMarks={syncMarks}
+              hrefFor={(event) => hrefFor({ tab: "important", event })}
+              selectedEventId={view.selected?.event.id ?? null}
             />
-          )}
-
-          {view.undated.length > 0 && (
-            <EventList
-              title={`날짜 미확정 ${view.undated.length}건`}
-              note="일정을 열어 '수정'에서 날짜를 넣으면 달력에 표시됩니다."
-              events={view.undated}
-              empty=""
-              hrefFor={(event) => hrefFor({ event })}
+          ) : onPartnerships ? (
+            <PartnershipList
+              groups={partnerships}
+              filtering={filtering}
+              syncMarks={syncMarks}
+              hrefFor={(event) => hrefFor({ tab: "partnerships", event })}
+              selectedEventId={view.selected?.event.id ?? null}
             />
-          )}
-
-          {view.monthCount === 0 && view.undated.length === 0 && view.sourceFilter !== "invalid" && (
-            <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-              {filtering ? (
-                <>
-                  선택한 출처에 이 달 일정이 없습니다.{" "}
-                  <Link href={sourceHref([])} className="underline">
-                    전체 보기
-                  </Link>
-                </>
-              ) : (
-                <>
-                  이 달에는 일정이 없습니다.{" "}
-                  <Link href="/candidates" className="underline">
-                    일정 후보
-                  </Link>
-                  에서 Approve한 일정이 여기에 표시됩니다.
-                </>
+          ) : (
+            <>
+              <CalendarMonth
+                grid={view.grid}
+                placed={view.placed}
+                todayKey={dayKey(today)}
+                selectedDay={selectedDayKey}
+                selectedEventId={view.selected?.event.id ?? null}
+                syncMarks={syncMarks}
+                importantIds={view.importantIds}
+                hrefFor={hrefFor}
+              />
+              {view.monthCount === 0 && view.undated.length === 0 && view.sourceFilter !== "invalid" && (
+                <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">
+                  {filtering ? (
+                    <>
+                      선택한 출처에 이 달 일정이 없습니다.{" "}
+                      <Link href={sourceHref([])} className="underline">
+                        전체 보기
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      이 달에는 일정이 없습니다.{" "}
+                      <Link href="/candidates" className="underline">
+                        일정 후보
+                      </Link>
+                      에서 승인한 일정이 여기에 표시됩니다.
+                    </>
+                  )}
+                </p>
               )}
-            </p>
+            </>
           )}
-        </>
-      )}
+        </div>
+
+        {side && (
+          <aside className="flex min-w-0 flex-col gap-3" aria-label="일정 상세와 목록">
+            {newEvent}
+            {detail}
+            {missing}
+            {onCalendar && day && view.dayEvents && (
+              <EventList
+                title={`${day.m}월 ${day.d}일 (${WEEKDAY_NAMES[weekdayOf(day)][0]})`}
+                count={view.dayEvents.length}
+                note={
+                  view.dayPartnershipCount > 0 ? (
+                    <>
+                      진행 중인 제휴 {view.dayPartnershipCount.toLocaleString()}건은{" "}
+                      <Link href={hrefFor({ tab: "partnerships" })} className="underline">
+                        제휴 탭
+                      </Link>
+                      에 있습니다.
+                    </>
+                  ) : undefined
+                }
+                events={view.dayEvents}
+                empty={
+                  view.dayPartnershipCount > 0
+                    ? "이 날에는 제휴 말고 다른 일정이 없습니다."
+                    : filtering
+                      ? "이 날에는 선택한 출처의 일정이 없습니다."
+                      : "이 날에는 일정이 없습니다."
+                }
+                syncMarks={syncMarks}
+                selectedEventId={view.selected?.event.id ?? null}
+                hrefFor={(event) => hrefFor({ day: selectedDayKey ?? undefined, event })}
+              />
+            )}
+            {onCalendar && view.undated.length > 0 && (
+              <EventList
+                title="날짜 미확정"
+                count={view.undated.length}
+                note="일정을 열어 '수정'에서 날짜를 넣으면 달력에 표시됩니다."
+                events={view.undated}
+                empty=""
+                syncMarks={syncMarks}
+                selectedEventId={view.selected?.event.id ?? null}
+                hrefFor={(event) => hrefFor({ event })}
+              />
+            )}
+            {onCalendar && !day && !view.selected && !newEvent && (
+              <p className="rounded-lg border border-dashed border-slate-300 p-4 text-xs leading-relaxed text-ink-500">
+                날짜를 누르면 그날의 일정이, 일정을 누르면 상세 정보와 Google 전송 상태가 여기에 표시됩니다.
+              </p>
+            )}
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
@@ -287,7 +309,7 @@ function ImportantList({
 }) {
   const total = groups.upcoming.length + groups.undated.length + groups.past.length;
   if (total === 0 && filtering) {
-    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">선택한 출처에 해당하는 중요 일정이 없습니다.</p>;
+    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">선택한 출처에 해당하는 중요 일정이 없습니다.</p>;
   }
   if (total === 0) {
     return (
@@ -328,7 +350,7 @@ function ImportantList({
               )}
               <span className={event.kind === "CANCEL_NOTICE" ? "line-through" : ""}>{event.title}</span>
             </span>
-            <span className="text-xs tabular-nums text-slate-500">
+            <span className="text-xs font-display text-ink-500">
               {formatEventWhen(event)}
               {event.location ? ` · ${event.location}` : ""}
             </span>
@@ -339,12 +361,12 @@ function ImportantList({
   );
   const heading = (title: string, count: number) => (
     <>
-      {title} <span className="tabular-nums font-normal text-slate-500">{count.toLocaleString()}건</span>
+      {title} <span className="font-display font-normal text-ink-500">{count.toLocaleString()}건</span>
     </>
   );
   return (
     <div className="space-y-3 text-sm">
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-500">
         제목에 중요 단어가 들어간 일정과 직접 &ldquo;중요로&rdquo; 지정한 일정입니다(달력에서는 ★로 표시).{" "}
         <Link href="/settings" className="underline">
           중요 단어 설정
@@ -352,7 +374,7 @@ function ImportantList({
       </p>
       <section className="rounded-lg border border-slate-200 bg-white" aria-label="다가오는 중요 일정">
         <h2 className="border-b border-slate-100 px-3 py-2 font-semibold">{heading("다가오는 일정", groups.upcoming.length)}</h2>
-        {groups.upcoming.length === 0 ? <p className="px-3 py-2 text-slate-500">다가오는 중요 일정이 없습니다.</p> : rows(groups.upcoming)}
+        {groups.upcoming.length === 0 ? <p className="px-3 py-2 text-ink-500">다가오는 중요 일정이 없습니다.</p> : rows(groups.upcoming)}
       </section>
       {groups.undated.length > 0 && (
         <section className="rounded-lg border border-slate-200 bg-white" aria-label="날짜 미확정 중요 일정">
@@ -395,18 +417,18 @@ function PartnershipList({
 }) {
   const total = groups.active.length + groups.upcoming.length + groups.ended.length;
   if (total === 0 && filtering) {
-    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">선택한 출처에 해당하는 제휴 일정이 없습니다.</p>;
+    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">선택한 출처에 해당하는 제휴 일정이 없습니다.</p>;
   }
   if (total === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+      <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">
         캘린더에 제휴 일정이 없습니다. 제목에 &ldquo;제휴&rdquo;가 들어가고 일주일보다 긴 일정이 이 탭에 모입니다.
       </p>
     );
   }
   return (
     <div className="space-y-3 text-sm">
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-500">
         제목에 &ldquo;제휴&rdquo;가 들어가고 일주일보다 긴 일정은 달력과 날짜별 목록에 표시하지 않고 여기에 모읍니다. 하루짜리 제휴 행사나 신청 마감은
         달력에 그대로 나옵니다.
       </p>
@@ -415,7 +437,7 @@ function PartnershipList({
         if (rows.length === 0 && !empty) return null;
         const body =
           rows.length === 0 ? (
-            <p className="px-3 py-2 text-slate-500">{empty}</p>
+            <p className="px-3 py-2 text-ink-500">{empty}</p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {rows.map(({ event, daysLeft }) => (
@@ -435,8 +457,8 @@ function PartnershipList({
                       )}
                       {event.title}
                     </span>
-                    <span className="text-xs tabular-nums text-slate-500">{formatEventWhen(event)}</span>
-                    <span className="text-xs tabular-nums text-slate-500 sm:text-right">
+                    <span className="text-xs font-display text-ink-500">{formatEventWhen(event)}</span>
+                    <span className="text-xs font-display text-ink-500 sm:text-right">
                       {daysLeft !== null ? `${daysLeft.toLocaleString()}일 남음` : ""}
                     </span>
                   </Link>
@@ -447,14 +469,14 @@ function PartnershipList({
         return key === "ended" ? (
           <details key={key} className="rounded-lg border border-slate-200 bg-white">
             <summary className="cursor-pointer px-3 py-2 font-semibold">
-              {title} <span className="tabular-nums font-normal text-slate-500">{rows.length.toLocaleString()}건</span>
+              {title} <span className="font-display font-normal text-ink-500">{rows.length.toLocaleString()}건</span>
             </summary>
             {body}
           </details>
         ) : (
           <section key={key} className="rounded-lg border border-slate-200 bg-white" aria-label={`제휴 ${title}`}>
             <h2 className="border-b border-slate-100 px-3 py-2 font-semibold">
-              {title} <span className="tabular-nums font-normal text-slate-500">{rows.length.toLocaleString()}건</span>
+              {title} <span className="font-display font-normal text-ink-500">{rows.length.toLocaleString()}건</span>
             </h2>
             {body}
           </section>
@@ -466,37 +488,59 @@ function PartnershipList({
 
 function EventList({
   title,
+  count,
   note,
   events,
   empty,
+  syncMarks,
+  selectedEventId,
   hrefFor,
 }: {
   title: string;
+  count: number;
   note?: React.ReactNode;
   events: CalendarEvent[];
   empty: string;
+  syncMarks: ReadonlyMap<string, "created" | "failed">;
+  selectedEventId: string | null;
   hrefFor: (eventId: string) => string;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
-      <h2 className="font-semibold">{title}</h2>
-      {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white text-sm" aria-label={title}>
+      <h2 className="flex items-center gap-2 border-b border-slate-200 px-3.5 py-2 text-[13px] font-semibold">
+        {title} <span className="font-display text-xs font-normal text-ink-500">{count.toLocaleString()}</span>
+      </h2>
+      {note && <p className="border-b border-slate-100 px-3.5 py-1.5 text-[11.5px] text-ink-500">{note}</p>}
       {events.length === 0 ? (
-        <p className="mt-2 text-slate-500">{empty}</p>
+        <p className="px-3.5 py-2.5 text-[12.5px] text-ink-500">{empty}</p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-100">
-          {events.map((event) => (
-            <li key={event.id}>
-              <Link href={hrefFor(event.id)} className="flex flex-wrap items-baseline gap-2 py-1.5 hover:bg-slate-50">
-                <span className={`rounded px-1.5 py-0.5 text-xs ${chipStyle(event)}`}>{kindLabel(event) ?? event.category}</span>
-                <span className={`font-medium ${event.kind === "CANCEL_NOTICE" ? "line-through" : ""}`}>{event.title}</span>
-                <span className="text-xs text-slate-500">
-                  {formatEventWhen(event)}
-                  {event.location ? ` · ${event.location}` : ""}
-                </span>
-              </Link>
-            </li>
-          ))}
+        <ul className="divide-y divide-slate-100">
+          {events.map((event) => {
+            const notice = kindLabel(event);
+            return (
+              <li key={event.id}>
+                <Link
+                  href={hrefFor(event.id)}
+                  title={`${event.title} — ${formatEventWhen(event)}${event.location ? ` · ${event.location}` : ""}`}
+                  className={`flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-slate-50 ${selectedEventId === event.id ? "bg-slate-50 ring-1 ring-inset ring-slate-900" : ""}`}
+                >
+                  <span className="w-10 shrink-0 font-display text-xs font-medium text-slate-700">
+                    {event.startAt && !event.allDay ? formatClock(event.startAt) : event.startAt ? "종일" : "—"}
+                  </span>
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${chipStyle(event).split(" ")[0]}`} aria-hidden />
+                  <span className={`min-w-0 flex-1 truncate text-[13px] ${event.kind === "CANCEL_NOTICE" ? "line-through" : ""}`}>
+                    {notice ? `[${notice}] ` : ""}
+                    {event.title}
+                  </span>
+                  {syncMarks.get(event.id) === "created" && (
+                    <span className="font-display text-[11px] font-medium text-emerald-700" title="Google 캘린더에 생성됨">
+                      G
+                    </span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

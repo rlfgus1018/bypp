@@ -25,12 +25,16 @@ const FLASH: Record<string, { tone: "ok" | "warn" | "error"; text: string }> = {
   busy: { tone: "warn", text: "이 일정은 지금 Google로 전송되는 중이라 제거하지 않았습니다. 잠시 후 다시 시도해 주세요." },
 };
 
-const TONE = { ok: "border-emerald-200 bg-emerald-50 text-emerald-900", warn: "border-amber-200 bg-amber-50 text-amber-900", error: "border-red-200 bg-red-50 text-red-800" };
+const TONE = {
+  ok: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  warn: "border-amber-200 bg-amber-50 text-amber-900",
+  error: "border-red-200 bg-red-50 text-red-800",
+};
 
 // A plain <a>, not <Link>: the target is a Route Handler that starts OAuth, and must never be prefetched.
 function ConnectLink({ label }: { label: string }) {
   return (
-    <a href="/api/auth/google" className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white">
+    <a href="/api/auth/google" className="rounded bg-slate-900 px-3.5 py-1.5 text-[12.5px] font-medium text-white hover:bg-slate-700">
       {label}
     </a>
   );
@@ -52,17 +56,23 @@ export function GoogleConnectionCard({
 }) {
   const note = flash ? FLASH[flash] : undefined;
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-3 text-sm" aria-label="Google 캘린더 연결">
+    <section
+      className={`rounded-md border bg-white px-3.5 py-2.5 text-[12.5px] ${connection.state === "connected" ? "border-emerald-200" : connection.state === "needs-reconnect" ? "border-amber-300" : "border-slate-200"}`}
+      aria-label="Google 캘린더 연결"
+    >
       {note && (
         <p className={`mb-2 rounded border p-2 ${TONE[note.tone]}`} role="status">
           {note.text}
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="font-medium">Google 캘린더</span>
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <span className={`font-medium ${connection.state === "connected" ? "text-emerald-800" : ""}`}>
+          Google 캘린더{connection.state === "connected" ? " · 연결됨" : ""}
+        </span>
         {connection.state === "not-configured" && (
           <span className="text-slate-500">
-            설정 미완료 — <code>.env.local</code>에 <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code>가 필요합니다.
+            설정 미완료 — <code>.env.local</code>에 <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code>
+            가 필요합니다.
           </span>
         )}
         {connection.state === "not-connected" && (
@@ -73,14 +83,16 @@ export function GoogleConnectionCard({
         )}
         {connection.state === "connected" && (
           <>
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">연결됨</span>
-            <span className="text-slate-600">{connection.email ?? "(이메일 비공개)"} 의 기본 캘린더</span>
+            <span className="text-ink-600">{connection.email ?? "(이메일 비공개)"} 의 기본 캘린더</span>
             {/* a page to review and untick first — following this link sends nothing */}
             <span className="ml-auto flex flex-wrap items-center gap-2">
-              <Link href="/calendar/google?scope=important" className="rounded border border-amber-500 px-3 py-1.5 text-sm font-medium text-amber-900">
+              <Link
+                href="/calendar/google?scope=important"
+                className="rounded border border-amber-500 px-3.5 py-1.5 font-medium text-amber-800 hover:bg-amber-50"
+              >
                 ★ 중요 일정 Google로 보내기 ({importantSendableCount.toLocaleString()}건)
               </Link>
-              <Link href="/calendar/google?scope=all" className="text-xs text-slate-600 underline">
+              <Link href="/calendar/google?scope=all" className="text-xs text-ink-500 hover:underline">
                 전체 {sendableCount.toLocaleString()}건
               </Link>
             </span>
@@ -88,7 +100,7 @@ export function GoogleConnectionCard({
         )}
         {connection.state === "needs-reconnect" && (
           <>
-            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">재연결 필요</span>
+            <span className="rounded-[3px] bg-amber-100 px-2 py-0.5 text-[11.5px] font-medium text-amber-800">재연결 필요</span>
             <span className="text-slate-600">
               {connection.email ? `${connection.email} · ` : ""}
               {REASON_TEXT[connection.reason]}
@@ -97,10 +109,12 @@ export function GoogleConnectionCard({
           </>
         )}
       </div>
-      <p className="mt-1 text-xs text-slate-500">
-        연결만으로는 아무것도 전송되지 않습니다. 일정을 열어 &ldquo;Google에 일정 생성&rdquo;을 누르거나 &ldquo;한꺼번에 보내기&rdquo;에서 고른 일정만, 한 번씩 만들어집니다(단방향 · 이후 수정·삭제는
-        Google에 반영되지 않음).
-      </p>
+      {connection.state !== "connected" && (
+        <p className="mt-1 text-[11.5px] text-ink-500">
+          연결만으로는 아무것도 전송되지 않습니다. 일정을 열어 &ldquo;Google에 일정 생성&rdquo;을 누르거나 &ldquo;한꺼번에 보내기&rdquo;에서 고른
+          일정만, 한 번씩 만들어집니다(단방향 · 이후 수정·삭제는 Google에 반영되지 않음).
+        </p>
+      )}
     </section>
   );
 }

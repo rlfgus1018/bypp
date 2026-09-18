@@ -94,47 +94,82 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
     }
   }
 
+  const extension = (file?.name.match(/\.(txt|eml)$/i)?.[1] ?? "TXT").toUpperCase();
+
   return (
-    <div className="space-y-4">
-      <form onSubmit={onSubmit} className="rounded-lg border border-slate-200 bg-white p-4">
-        <label className="block text-sm font-medium" htmlFor="file">
-          KakaoTalk 대화 내보내기 파일 (.txt / .eml)
-        </label>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+    <div className="space-y-3.5">
+      <form onSubmit={onSubmit} className="hud-corner space-y-3.5 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed border-[#94c4e8] bg-[#f8fcff] p-4">
+          <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border border-ark-500 font-display text-[10px] font-semibold text-ark-700" aria-hidden>
+            {extension}
+          </div>
+          <div className="min-w-0 flex-1">
+            {file ? (
+              <>
+                <p className="break-words text-[13.5px] font-medium">{file.name}</p>
+                <p className="text-xs text-ink-500">
+                  {previewing
+                    ? "파일 분석 중… (저장·외부 전송 없음)"
+                    : preview
+                      ? `메시지 ${preview.totalMessages.toLocaleString()}건 · ${dotDate(preview.firstSentAt)} ~ ${dotDate(preview.lastSentAt)}`
+                      : ""}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[13.5px] font-medium">KakaoTalk 대화 내보내기 파일 (.txt / .eml)</p>
+                <p className="text-xs text-ink-500">
+                  파일을 고르면 먼저 기간별 건수만 분석합니다(저장·외부 전송 없음).{" "}
+                  <Link href="/guide#export" className="text-ark-700 underline-offset-2 hover:underline">
+                    카카오톡에서 내보내는 방법 →
+                  </Link>
+                </p>
+              </>
+            )}
+          </div>
           <input
             id="file"
             name="file"
             type="file"
             accept=".txt,.eml,text/plain,message/rfc822"
-            className="text-sm"
+            className="peer sr-only"
             disabled={busy !== null || previewing}
             onChange={onFileChange}
           />
+          <label
+            htmlFor="file"
+            className={`rounded border border-slate-300 bg-white px-3.5 py-2 text-[13px] text-slate-700 peer-focus-visible:outline-2 peer-focus-visible:outline-ark-500 ${
+              busy !== null || previewing ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-slate-50"
+            }`}
+          >
+            {file ? "다른 파일" : "파일 선택"}
+          </label>
+        </div>
+
+        {preview && <PeriodPicker preview={preview} value={period} onChange={setPeriod} llmEnabled={llmEnabled} llmPlan={llmPlan} disabled={busy !== null} />}
+
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {!file && <span className="text-xs text-ink-500">확장자가 아니라 내용으로 형식을 판별하며, 같은 파일을 다시 올려도 새 메시지만 처리됩니다.</span>}
           <button
             type="submit"
             disabled={busy !== null || previewing || !file}
-            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded bg-ark-700 px-[18px] py-2.5 text-[13.5px] font-semibold text-white shadow-[0_3px_0_var(--color-ark-900)] hover:bg-ark-500 disabled:opacity-50 disabled:shadow-none"
           >
             {busy === "upload" ? "업로드 중…" : previewing ? "파일 분석 중…" : "선택한 기간으로 가져오기"}
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          파일을 고르면 먼저 기간별 건수만 분석합니다(저장·외부 전송 없음). 확장자가 아니라 파일 내용으로 형식을 판별하며, 같은 파일을 다시 올려도 새
-          메시지만 처리됩니다.
-        </p>
-        {preview && (
-          <div className="mt-4">
-            <PeriodPicker preview={preview} value={period} onChange={setPeriod} llmEnabled={llmEnabled} llmPlan={llmPlan} disabled={busy !== null} />
-          </div>
-        )}
       </form>
 
-      {error && <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && (
+        <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      )}
 
       {summary && (
         <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
-          <h2 className="font-semibold">가져오기 결과</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="text-[13.5px] font-semibold">가져오기 결과</h2>
+          <p className="mt-1 text-xs text-ink-500">
             채팅방: {summary.chatTitle} · 형식: {summary.container} · 추출 기간:{" "}
             {summary.range.from || summary.range.to ? `${summary.range.from ?? "처음"} ~ ${summary.range.to ?? "끝"}` : "전체"}
           </p>
@@ -168,7 +203,7 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
       )}
 
       {!busy && overall.pending === 0 && overall.extracted > 0 && (
-        <Link href="/candidates" className="inline-block rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
+        <Link href="/candidates" className="inline-block rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600">
           후보 검토하기 →
         </Link>
       )}
@@ -176,11 +211,13 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
   );
 }
 
+const dotDate = (iso: string | null) => (iso ? iso.slice(0, 10).replaceAll("-", ".") : "?");
+
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex justify-between gap-2">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="font-medium tabular-nums">{value.toLocaleString()}</dd>
+      <dt className="text-ink-500">{label}</dt>
+      <dd className="font-display font-medium">{value.toLocaleString()}</dd>
     </div>
   );
 }

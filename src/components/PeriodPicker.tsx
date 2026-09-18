@@ -98,10 +98,15 @@ export function PeriodPicker({
   const estimate = estimateLlmSeconds(total.needsLlm, llmPlan);
   const invalid = value.from !== "" && value.to !== "" && value.from > value.to;
 
+  const activePreset = PRESETS.find((preset) => {
+    const range = preset.range();
+    return range.from === value.from && range.to === value.to;
+  })?.label;
+  const field = "rounded border border-slate-300 bg-white px-2.5 py-1.5 font-display text-[13px] disabled:bg-slate-100";
+
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
-      <h2 className="font-semibold">추출 기간 선택</h2>
-      <p className={`mt-2 break-words rounded p-2 ${preview.knownChat ? "bg-sky-50 text-sky-900" : "bg-slate-50 text-slate-700"}`}>
+    <section className="space-y-2.5 text-sm" aria-label="추출 기간 선택">
+      <p className={`break-words rounded p-2.5 text-[12.5px] leading-relaxed ${preview.knownChat ? "bg-sky-50 text-sky-900" : "bg-slate-100 text-slate-700"}`}>
         {preview.knownChat ? (
           <>
             이미 등록된 채팅방입니다: <strong>{preview.chatTitle}</strong>. 기존 메시지 {preview.duplicateMessages.toLocaleString()}건은 건너뛰고{" "}
@@ -115,95 +120,89 @@ export function PeriodPicker({
           </>
         )}
       </p>
-      <p className="mt-1 text-xs text-slate-500">
-        메시지 {preview.totalMessages.toLocaleString()}건 · {preview.firstSentAt?.slice(0, 10)} ~{" "}
-        {preview.lastSentAt?.slice(0, 10)}. 기간은 <strong>메시지를 보낸 날짜</strong> 기준입니다. 기간 밖 메시지는 저장만 해 두고 추출하지 않으며,
-        나중에 같은 파일을 더 넓은 기간으로 다시 올리면 그때 추출됩니다.
-      </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="flex items-baseline gap-2">
+        <h2 className="text-[13.5px] font-semibold">추출 기간</h2>
+        <span className="text-xs text-ink-500">메시지를 보낸 날짜 기준 · 기간 밖 메시지는 저장만 하고, 나중에 더 넓은 기간으로 다시 올리면 추출됩니다</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
         {PRESETS.map((preset) => (
           <button
             key={preset.label}
             type="button"
             disabled={disabled}
+            aria-pressed={activePreset === preset.label}
             onClick={() => onChange(preset.range())}
-            className="rounded-full border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
+            className={`rounded-full px-3.5 py-1.5 text-[12.5px] disabled:opacity-50 ${
+              activePreset === preset.label ? "bg-slate-900 font-medium text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
           >
             {preset.label}
           </button>
         ))}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1">
-          <span className="text-slate-500">시작</span>
-          <input
-            type="date"
-            value={value.from}
-            disabled={disabled}
-            onChange={(event) => onChange({ ...value, from: event.target.value })}
-            className="rounded border border-slate-300 px-2 py-1"
-          />
+      <div className="flex flex-wrap items-end gap-2.5">
+        <label className="flex flex-col gap-1">
+          <span className="text-[11.5px] text-ink-500">시작</span>
+          <input type="date" value={value.from} disabled={disabled} onChange={(event) => onChange({ ...value, from: event.target.value })} className={field} />
         </label>
-        <span className="text-slate-400">~</span>
-        <label className="flex items-center gap-1">
-          <span className="text-slate-500">끝</span>
-          <input
-            type="date"
-            value={value.to}
-            disabled={disabled}
-            onChange={(event) => onChange({ ...value, to: event.target.value })}
-            className="rounded border border-slate-300 px-2 py-1"
-          />
+        <label className="flex flex-col gap-1">
+          <span className="text-[11.5px] text-ink-500">끝</span>
+          <input type="date" value={value.to} disabled={disabled} onChange={(event) => onChange({ ...value, to: event.target.value })} className={field} />
         </label>
-        <span className="text-xs text-slate-500">비워 두면 제한 없음</span>
+        <span className="pb-2 text-xs text-ink-500">비워 두면 제한 없음</span>
       </div>
-      {invalid && <p className="mt-2 text-xs text-red-700">시작 날짜가 끝 날짜보다 늦습니다.</p>}
-
-      <p className="mt-3 rounded bg-slate-50 p-2" aria-live="polite">
-        선택한 기간: 추출 대상 <strong className="tabular-nums">{total.toExtract.toLocaleString()}</strong>건
-        {llmEnabled ? (
-          <>
-            {" "}
-            · 그중 LLM 필요 <strong className="tabular-nums">{total.needsLlm.toLocaleString()}</strong>건 (요청 {estimate.requests.toLocaleString()}회 ·{" "}
-            {formatDuration(estimate.seconds)})
-          </>
-        ) : (
-          <> · 그중 heuristic 처리 {total.needsLlm.toLocaleString()}건</>
-        )}{" "}
-        · 기간 밖 보류 <span className="tabular-nums">{total.heldBack.toLocaleString()}</span>건
-        {total.detected > total.toExtract ? ` · 이미 처리됨 ${(total.detected - total.toExtract).toLocaleString()}건` : ""}
-      </p>
-      {preview.importantKeywords > 0 && (
-        <p className="mt-2 text-xs text-amber-900">
-          ★ 중요 키워드 포함 메시지 <strong className="tabular-nums">{total.important.toLocaleString()}</strong>건
-          <span className="block text-slate-500">※ 일정 후보 추출 전 원문 기준 예상치입니다. 실제 중요 여부는 추출된 일정 제목으로 판단합니다.</span>
+      {invalid && (
+        <p className="text-xs text-red-700" role="alert">
+          시작 날짜가 끝 날짜보다 늦습니다.
         </p>
       )}
 
+      <p className="rounded bg-slate-100 px-3 py-2.5 text-[12.5px] leading-relaxed text-slate-700" aria-live="polite">
+        추출 대상 <strong className="font-display">{total.toExtract.toLocaleString()}</strong>건
+        {llmEnabled ? (
+          <>
+            {" "}
+            · 그중 LLM 필요 <strong className="font-display">{total.needsLlm.toLocaleString()}</strong>건 (요청 {estimate.requests.toLocaleString()}회 ·{" "}
+            {formatDuration(estimate.seconds)})
+          </>
+        ) : (
+          <> · 그중 추정 처리 {total.needsLlm.toLocaleString()}건</>
+        )}{" "}
+        · 기간 밖 보류 <span className="font-display">{total.heldBack.toLocaleString()}</span>건
+        {total.detected > total.toExtract ? ` · 이미 처리됨 ${(total.detected - total.toExtract).toLocaleString()}건` : ""}
+        {preview.importantKeywords > 0 && (
+          <>
+            {" "}
+            · <span className="text-amber-800">★ 중요 단어 포함 예상</span> <span className="font-display">{total.important.toLocaleString()}</span>건
+          </>
+        )}
+      </p>
+      {preview.importantKeywords > 0 && <p className="text-xs text-ink-500">※ ★ 예상치는 일정 후보 추출 전 원문 기준입니다. 실제 중요 여부는 추출된 일정 제목으로 판단합니다.</p>}
+
       {rows.length > 0 && (
-        <div className="mt-3 max-h-56 overflow-y-auto">
+        <div className="max-h-48 overflow-y-auto rounded border border-slate-100">
           <table className="w-full text-xs">
-            <thead className="text-left text-slate-500">
+            <thead className="sticky top-0 bg-white text-left text-ink-500">
               <tr>
-                <th className="py-1 font-normal">월</th>
-                <th className="py-1 font-normal">추출 대상 (진한 부분 = 선택됨)</th>
+                <th className="px-2 py-1 font-normal">월</th>
+                <th className="py-1 font-normal">추출 대상 (파란 부분 = 선택됨)</th>
                 <th className="whitespace-nowrap py-1 pl-2 text-right font-normal">대상</th>
-                <th className="whitespace-nowrap py-1 pl-2 text-right font-normal">{llmEnabled ? "LLM" : "heuristic"}</th>
+                <th className="whitespace-nowrap px-2 py-1 text-right font-normal">{llmEnabled ? "LLM" : "추정"}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.month} className={row.selected > 0 ? "" : "text-slate-400"}>
-                  <td className="whitespace-nowrap py-0.5 pr-2 tabular-nums">{row.month}</td>
+                  <td className="whitespace-nowrap px-2 py-0.5 font-display">{row.month}</td>
                   <td className="w-full py-0.5 pr-2">
-                    <div className="relative h-2 rounded bg-slate-100">
-                      <div className="absolute inset-y-0 left-0 rounded bg-slate-300" style={{ width: `${(row.toExtract / peak) * 100}%` }} />
-                      <div className="absolute inset-y-0 left-0 rounded bg-slate-900" style={{ width: `${(row.selected / peak) * 100}%` }} />
+                    <div className="relative h-2 rounded-sm bg-slate-100">
+                      <div className="absolute inset-y-0 left-0 rounded-sm bg-slate-200" style={{ width: `${(row.toExtract / peak) * 100}%` }} />
+                      <div className="absolute inset-y-0 left-0 rounded-sm bg-ark-500" style={{ width: `${(row.selected / peak) * 100}%` }} />
                     </div>
                   </td>
-                  <td className="py-0.5 text-right tabular-nums">{row.toExtract}</td>
-                  <td className="py-0.5 pl-2 text-right tabular-nums">{row.needsLlm}</td>
+                  <td className="py-0.5 text-right font-display">{row.toExtract}</td>
+                  <td className="px-2 py-0.5 text-right font-display">{row.needsLlm}</td>
                 </tr>
               ))}
             </tbody>

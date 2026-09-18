@@ -32,7 +32,7 @@ export type CalendarMonthView = {
   /** how many important keywords exist (0 = the important tab explains how to start) */
   keywordCount: number;
   /** set when an event is selected */
-  selected: { event: CalendarEventWithSource; sameSlot: CalendarEvent[]; importance: ImportanceReason } | null;
+  selected: { event: CalendarEventWithSource; sameSlot: CalendarEvent[]; importance: ImportanceReason; sourceTitle: string | null } | null;
 };
 
 const withoutPartnerships = (events: CalendarEvent[]) => events.filter((event) => !isPartnership(event));
@@ -85,6 +85,7 @@ export function loadCalendarMonth(
       ? {
           event: selectedEvent,
           importance: getImportanceReason(selectedEvent.title, selectedEvent.importanceOverride, keywords),
+          sourceTitle: calendarSources.chips.find((chip) => chip.kind === "chat" && chip.key === calendarSources.keyOf.get(selectedEvent.id))?.title ?? null,
           sameSlot: selectedEvent.startAt ? events.listSameSlot(selectedEvent.startAt, selectedEvent.category, selectedEvent.id) : [],
         }
       : null,

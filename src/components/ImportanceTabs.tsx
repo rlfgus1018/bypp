@@ -19,18 +19,21 @@ export function ImportanceTabs({
     <Link
       href={hrefFor(value)}
       aria-current={active === value ? "page" : undefined}
-      className={`rounded-full px-3 py-1 ${active === value ? (value === "important" ? "bg-amber-500 text-white" : "bg-slate-900 text-white") : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+      className={`rounded-full px-3.5 py-1.5 ${
+        active === value
+          ? value === "important"
+            ? "bg-amber-500 font-semibold text-amber-950"
+            : "bg-slate-900 font-medium text-white"
+          : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
     >
-      {label} <span className="tabular-nums opacity-80">{count.toLocaleString()}</span>
+      {label} <span className="font-display opacity-80">{count.toLocaleString()}</span>
     </Link>
   );
   return (
-    <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="중요 범위">
+    <nav className="flex flex-wrap items-center gap-1.5 text-[12.5px]" aria-label="중요 범위">
       {tab("", "전체", allCount)}
       {tab("important", "★ 중요", importantCount)}
-      <Link href="/settings" className="text-xs text-slate-500 underline">
-        중요 단어 설정
-      </Link>
     </nav>
   );
 }
