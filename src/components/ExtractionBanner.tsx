@@ -12,7 +12,7 @@ export function ExtractionBanner() {
   const router = useRouter();
   const { overall, run, running, resumeAt, start } = useExtraction();
 
-  if (pathname === "/" || !overall) return null;
+  if (pathname === "/upload" || !overall) return null;
   const done = overall.extracted + overall.failed;
   const total = done + overall.pending;
   if (!running && overall.pending === 0) return null;
@@ -41,7 +41,7 @@ export function ExtractionBanner() {
               {resumeAt ? "지금 재시도" : "이어서 추출"}
             </button>
           )}
-          <Link href="/" className="rounded-[3px] border border-white/25 px-2.5 py-1 text-mist-100 hover:bg-white/5">
+          <Link href="/upload" className="rounded-[3px] border border-white/25 px-2.5 py-1 text-mist-100 hover:bg-white/5">
             자세히
           </Link>
         </span>

@@ -6,7 +6,7 @@ export default function NotFound() {
       <h1 className="text-lg font-semibold">페이지를 찾을 수 없습니다</h1>
       <p className="text-slate-600">주소가 잘못되었거나 더 이상 없는 페이지입니다.</p>
       <div className="flex flex-wrap gap-2">
-        <Link href="/" className="rounded bg-slate-900 px-3 py-1.5 font-medium text-white">
+        <Link href="/upload" className="rounded bg-slate-900 px-3 py-1.5 font-medium text-white">
           업로드
         </Link>
         <Link href="/candidates" className="rounded border border-slate-300 px-3 py-1.5">

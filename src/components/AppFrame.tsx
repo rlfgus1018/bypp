@@ -5,11 +5,11 @@ import { ExtractionBanner } from "./ExtractionBanner";
 
 /**
  * The app chrome (header + content column + extraction banner) around every page — except the landing page
- * (/guide), which is a full-bleed page with its own header and footer.
+ * (/), which is a full-bleed page with its own header and footer.
  */
 export function AppFrame({ header, children }: { header: React.ReactNode; children: React.ReactNode }) {
   const pathname = usePathname();
-  if (pathname.startsWith("/guide")) return <>{children}</>;
+  if (pathname === "/") return <>{children}</>;
   return (
     <>
       {header}

@@ -120,7 +120,7 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
                 <p className="text-[13.5px] font-medium">KakaoTalk 대화 내보내기 파일 (.txt / .eml)</p>
                 <p className="text-xs text-ink-500">
                   파일을 고르면 먼저 기간별 건수만 분석합니다(저장·외부 전송 없음).{" "}
-                  <Link href="/guide#export" className="text-ark-700 underline-offset-2 hover:underline">
+                  <Link href="/#export" className="text-ark-700 underline-offset-2 hover:underline">
                     카카오톡에서 내보내는 방법 →
                   </Link>
                 </p>

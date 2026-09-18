@@ -16,7 +16,7 @@ export function AppHeader({ pendingCount, google }: { pendingCount: number; goog
   return (
     <header className="bg-navy-950">
       <div className="mx-auto flex min-h-14 max-w-[1280px] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2 sm:px-7">
-        <Link href="/guide" className="flex items-center gap-2.5" title="서비스 소개 · 대화 내보내기 방법">
+        <Link href="/" className="flex items-center gap-2.5" title="서비스 소개 · 대화 내보내기 방법">
           <span className="block h-[15px] w-[15px] rotate-45 bg-ark-300" aria-hidden />
           <span className="font-display text-base font-semibold tracking-[0.1em] text-white">ARK:U</span>
         </Link>

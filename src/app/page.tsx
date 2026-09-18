@@ -1,188 +1,248 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { AssistantCard } from "@/components/AssistantCard";
-import { UploadForm } from "@/components/UploadForm";
-import { formatClock, formatInstant } from "@/lib/calendar/format";
-import { kstToday, nowMs } from "@/lib/calendar/month-grid";
-import { isPartnership } from "@/lib/calendar/partnership";
-import { chatTitleOf } from "@/lib/candidates/source-group";
-import { getDb } from "@/lib/db/client";
-import { calendarEventsRepo } from "@/lib/db/repositories/calendar-events";
-import { candidatesRepo } from "@/lib/db/repositories/candidates";
-import { importsRepo } from "@/lib/db/repositories/imports";
-import { messagesRepo } from "@/lib/db/repositories/messages";
-import { planBulkSend } from "@/lib/google/bulk-plan";
-import { getConnectionView } from "@/lib/google/connection";
-import { isGoogleConfigured } from "@/lib/google/runtime";
-import { parseIsoToKst, toIsoKst, weekdayOf, WEEKDAY_NAMES } from "@/lib/schedule/kst";
-import { describeLlm, llmConfigWarnings, resolveLlmConfig } from "@/lib/schedule/factory";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "ARK:U — 서비스 소개 · 카카오톡 대화 내보내기 방법",
+  description: "카카오톡 단체방 공지에서 일정만 골라 정리하는 개인용 도구. 이용 흐름과 대화 내보내기 방법.",
+};
 
-const UPCOMING = 3;
+// The landing page (/). Static: no database, nothing sent anywhere. The app chrome (header, banner) is left out
+// by AppFrame; the app itself starts at /upload.
 
-// Rendering only reads: the local database and the environment. Nothing is sent anywhere.
-export default function HomePage() {
-  const db = getDb();
-  const statuses = messagesRepo(db).countByStatus();
-  const recent = importsRepo(db).listRecent(5);
-  const pending = candidatesRepo(db).countByStatus({}).PENDING;
-  // Computed on the server; only this plain string (never the key) reaches the browser.
-  const llm = resolveLlmConfig();
-  const llmLabel = describeLlm(llm);
-  const configWarnings = llmConfigWarnings();
-  const providerLabel = llm?.provider === "openrouter" ? "OpenRouter/DeepSeek" : "Google Gemini";
+const STEPS = [
+  { title: "대화 가져오기", body: "내보낸 .txt / .eml 파일을 올리고 추출 기간을 고릅니다." },
+  { title: "일정 후보 검토", body: "채팅방별로 묶인 후보를 원문과 함께 보고 승인하거나 무시합니다." },
+  { title: "캘린더에서 관리", body: "승인한 일정을 월 달력에서 보고 수정·제거합니다. 출처·★ 중요로 걸러 봅니다." },
+  { title: "Google로 보내기", body: "고른 일정만 확인 단계를 거쳐 Google 캘린더에 생성합니다." },
+  { title: "휴대폰 캘린더에서 확인", body: "같은 계정을 쓰는 아이폰·안드로이드 기본 캘린더 앱에 그대로 나타나고 알림도 받습니다." },
+];
 
-  const today = toIsoKst(kstToday());
-  const upcoming = calendarEventsRepo(db)
-    .listOverlapping(today, "9999-12-31T00:00:00+09:00")
-    // starting today or later (ongoing multi-day periods are not "coming up")
-    .filter((event) => event.startAt !== null && event.startAt >= today && !isPartnership(event) && event.kind === "EVENT")
-    .slice(0, UPCOMING);
-  const connection = getConnectionView(db, isGoogleConfigured());
-  const importantSendable = connection.state === "connected" ? planBulkSend(db, nowMs(), undefined, "important").sendable.length : 0;
+const MOBILE_STEPS = [
+  { image: "/assets/mobile1.jpg", title: "채팅방 메뉴에서 설정(⚙) 열기", note: "채팅방 오른쪽 위 메뉴 → 톱니바퀴.", alt: "카카오톡 채팅방 메뉴 화면", position: "object-top" },
+  { image: "/assets/mobile2.jpg", title: "대화 내용 내보내기 선택", note: "‘채팅방 데이터’ 아래에 있습니다.", alt: "채팅방 설정의 대화 내용 내보내기 항목", position: "object-bottom" },
+  { image: "/assets/mobile3.jpg", title: "텍스트 메시지만 저장", note: "메일로 받은 첨부 파일을 그대로 올리면 됩니다.", alt: "대화 내용 내보내기 방식 선택 화면", position: "object-top" },
+];
 
+const PC_STEPS = [
+  { image: "/assets/pc1.jpg", width: 223, height: 310, title: "설정 메뉴에서 ‘대화 내용’", note: "채팅방 오른쪽 아래 ⚙ → 대화 내용.", alt: "PC 카카오톡 채팅방 설정 메뉴" },
+  { image: "/assets/pc2.jpg", width: 169, height: 101, title: "‘대화 내보내기’ 누르기", note: "하위 메뉴의 ‘대화 내보내기’ (Ctrl+S).", alt: "대화 내보내기 하위 메뉴" },
+  { image: "/assets/pc3.jpg", width: 391, height: 312, title: "저장한 파일을 업로드", note: "저장한 .txt 파일을 그대로 올립니다.", alt: "대화 내용 메뉴 전체 모습" },
+];
+
+const FAQ = [
+  { q: "Google 캘린더가 자동으로 바뀌나요?", a: "아니요. 승인은 ARK:U 안의 캘린더에만 추가합니다. Google에는 직접 고르고 확인한 일정만 보내며, 보낸 뒤의 수정·삭제도 Google에 반영되지 않습니다." },
+  { q: "날짜를 못 찾은 후보는요?", a: "‘날짜 미확정’으로 따로 모입니다. 승인한 뒤 캘린더에서 날짜를 채워 넣거나 무시하면 됩니다." },
+  { q: "놓치면 안 되는 공지가 있어요", a: "중요 단어를 등록하면 제목이 걸리는 후보에 ★ 표시가 붙고, 모아 보거나 Google로 먼저 보낼 수 있습니다." },
+];
+
+function StepNumber({ n }: { n: number }) {
+  return <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ark-500 font-display text-xs font-bold text-white">{n}</span>;
+}
+
+function Eyebrow({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
+  return <span className={`font-display text-[11px] font-medium tracking-[0.2em] ${dark ? "text-ark-300" : "text-ark-700"}`}>{children}</span>;
+}
+
+export default function LandingPage() {
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="min-w-0 space-y-3.5">
-        <h1 className="text-[21px] font-semibold">KakaoTalk 대화 가져오기</h1>
-
-        <div className={`rounded-lg border px-4 py-3 text-sm ${llm ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className={`rounded-[3px] px-2 py-0.5 font-display text-[11.5px] font-medium ${llm ? "bg-amber-200 text-amber-900" : "bg-slate-100 text-slate-700"}`}>
-              {llm ? "LLM ON" : "LLM OFF"}
-            </span>
-            <span className={`text-[12.5px] ${llm ? "text-amber-900" : "text-ink-600"}`}>
-              {llm ? `${providerLabel} API가 활성화되어 있습니다.` : "모든 처리가 이 컴퓨터 안에서 이루어집니다. 애매한 메시지는 저신뢰 추정으로 추출합니다."}
-            </span>
-            <Link href="/settings#extraction" className="ml-auto text-xs text-ark-700 hover:underline">
-              설정에서 확인
-            </Link>
-          </div>
-          {llm && (
-            <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900">
-              ⚠ 일정 해석이 필요한 일부 카카오톡 메시지(전화번호·이메일·URL 마스킹, 보낸 사람 제외
-              {llm.batchSize > 1 ? `, 같은 방의 메시지를 한 요청에 최대 ${llm.batchSize}건씩` : ""})가 외부 {providerLabel} API로 전송될 수 있습니다. 실제
-              개인/타인의 대화 데이터를 전송하기 전에 선택한 공급자의 최신 데이터 처리 정책을 확인하세요.{" "}
-              <span className="font-display text-xs">({llmLabel})</span>
-            </p>
-          )}
-          {configWarnings.map((warning) => (
-            <p key={warning} className="mt-1 text-xs text-red-700" role="alert">
-              {warning} (.env.local 확인 후 개발 서버를 다시 시작하세요)
-            </p>
-          ))}
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex min-h-[62px] max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 sm:px-10">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="block h-4 w-4 rotate-45 bg-navy-950" aria-hidden />
+            <span className="font-display text-[17px] font-semibold tracking-[0.1em]">ARK:U</span>
+          </Link>
+          <div className="flex-1" />
+          <nav className="hidden flex-wrap gap-5 text-[13.5px] text-ink-600 md:flex" aria-label="안내 목차">
+            <a href="#intro" className="hover:text-slate-900">
+              서비스 소개
+            </a>
+            <a href="#export" className="hover:text-slate-900">
+              대화 내보내기 방법
+            </a>
+            <a href="#flow" className="hover:text-slate-900">
+              이용 흐름
+            </a>
+            <a href="#faq" className="hover:text-slate-900">
+              자주 묻는 질문
+            </a>
+          </nav>
+          <Link href="/upload" className="rounded bg-slate-900 px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-slate-700">
+            업로드 시작하기
+          </Link>
         </div>
+      </header>
 
-        <UploadForm
-          initialOverall={{ extracted: statuses.EXTRACTED ?? 0, failed: statuses.FAILED ?? 0, pending: statuses.PENDING_EXTRACTION ?? 0 }}
-          llmEnabled={llm !== null}
-          llmPlan={{ batchSize: llm?.batchSize ?? 1, rpm: llm?.rpm ?? 0, concurrency: llm?.concurrency ?? 1 }}
-        />
+      <main>
+        <section id="intro" className="relative scroll-mt-16 overflow-hidden bg-gradient-to-r from-navy-950 via-navy-700 to-ark-500 px-4 pt-12 sm:px-10">
+          <div className="hud-grid absolute inset-0" aria-hidden />
+          <div className="relative mx-auto grid max-w-[1200px] items-end gap-8 md:grid-cols-[minmax(0,1fr)_372px]">
+            <div className="flex flex-col gap-4 pb-12">
+              <Eyebrow dark>KAKAOTALK → 일정 후보 → 내 캘린더</Eyebrow>
+              <h1 className="text-[30px] font-semibold leading-snug text-white [text-wrap:pretty] sm:text-[38px]">
+                단체방 공지에서 일정만
+                <br />
+                골라 정리하는 개인용 도구
+              </h1>
+              <p className="max-w-[560px] text-[15.5px] leading-[1.75] text-mist-100">
+                대화 파일을 올리면 날짜가 담긴 문장을 찾아 일정 후보로 만듭니다. 승인한 일정만 내 캘린더에 남습니다.
+              </p>
+              <a href="#flow" className="mt-1.5 flex items-center gap-3 self-start text-[13.5px] text-mist-100 hover:text-white">
+                아래로 내려가며 이용 흐름과 내보내기 방법 확인
+                <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-white/50" aria-hidden>
+                  <span className="block h-[7px] w-[7px] -translate-y-px rotate-45 border-b-[1.5px] border-r-[1.5px] border-white" />
+                </span>
+              </a>
+            </div>
+            <Image
+              src="/assets/standing1.png"
+              alt="ARK:U 안내 캐릭터 전신 일러스트"
+              width={1024}
+              height={1536}
+              sizes="372px"
+              loading="eager"
+              className="mx-auto w-[260px] drop-shadow-[0_12px_30px_rgb(10_25_50/0.35)] md:w-[372px]"
+            />
+          </div>
+        </section>
 
-        {recent.length > 0 && (
-          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white" aria-label="최근 가져오기">
-            <h2 className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5 text-[13.5px] font-semibold">
-              최근 가져오기 <span className="font-display text-xs font-normal text-ink-500">{recent.length}</span>
-            </h2>
-            <ul className="divide-y divide-slate-100 text-[13px]">
-              {recent.map((item) => (
-                <li key={item.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-                  <span className="min-w-0 flex-1 break-words" title={item.filename}>
-                    {chatTitleOf({ filename: item.filename, importRoomName: item.roomName, messageRoomName: null }).title}
+        <section id="flow" className="mx-auto flex max-w-[1280px] scroll-mt-16 flex-col gap-5 px-4 pb-10 pt-11 sm:px-10">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <Eyebrow>HOW IT WORKS</Eyebrow>
+            <h2 className="text-[25px] font-semibold">업로드에서 휴대폰 캘린더까지 다섯 단계</h2>
+          </div>
+          <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {STEPS.map((step, index) => (
+              <li key={step.title} className={`flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-5 ${index === 0 ? "hud-corner" : ""}`}>
+                <span className="-skew-x-[10deg] self-start bg-slate-900 px-3 py-1 font-display text-xs font-bold text-white">
+                  <span className="inline-block skew-x-[10deg]">STEP {index + 1}</span>
+                </span>
+                <span className="text-base font-semibold">{step.title}</span>
+                <span className="text-[13.5px] leading-[1.7] text-ink-600">{step.body}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section id="export" className="mx-auto max-w-[1280px] scroll-mt-16 px-4 pb-11 sm:px-10" aria-label="휴대폰에서 대화 내보내기">
+          <div className="flex flex-col gap-5 rounded-[10px] bg-navy-950 px-5 py-7 sm:px-8">
+            <div className="flex items-end gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Eyebrow dark>EXPORT GUIDE · 모바일</Eyebrow>
+                <h2 className="text-2xl font-semibold text-white">카카오톡에서 대화 내보내기 (휴대폰)</h2>
+                <p className="max-w-[620px] text-[13.5px] leading-[1.7] text-mist-100">
+                  채팅방 메뉴 → 설정 → 대화 내용 내보내기 → <strong className="font-semibold text-ark-300">텍스트 메시지만 저장</strong>.
+                </p>
+              </div>
+              <div className="flex-1" />
+              <Image
+                src="/assets/upperbody1.png"
+                alt=""
+                width={1254}
+                height={1254}
+                sizes="150px"
+                className="-mb-8 hidden w-[150px] select-none sm:block"
+              />
+            </div>
+            <ol className="grid gap-[18px] md:grid-cols-3">
+              {MOBILE_STEPS.map((step, index) => (
+                <li key={step.image} className="flex flex-col gap-2.5">
+                  <span className="flex items-center gap-2.5 text-sm font-medium text-white">
+                    <StepNumber n={index + 1} />
+                    {step.title}
                   </span>
-                  <span className="text-xs text-ink-600">
-                    신규 <span className="font-display">{item.newMessages.toLocaleString()}</span> · 추출 대상{" "}
-                    <span className="font-display">{item.detectedCount.toLocaleString()}</span>
-                    {item.outOfRangeCount > 0 ? ` · 기간 밖 보류 ${item.outOfRangeCount.toLocaleString()}` : ""}
-                    {item.rangeFrom || item.rangeTo ? ` · 기간 ${item.rangeFrom ?? "처음"}~${item.rangeTo ?? "끝"}` : ""}
-                  </span>
-                  <span className="font-display text-xs text-ink-500">{formatInstant(item.createdAt)}</span>
+                  <div className="relative h-[236px] overflow-hidden rounded-md border border-ark-300/35 bg-black">
+                    <Image src={step.image} alt={step.alt} fill sizes="(min-width: 768px) 380px, 100vw" className={`object-cover ${step.position}`} />
+                  </div>
+                  <span className="text-[12.5px] leading-relaxed text-mist-300">{step.note}</span>
                 </li>
               ))}
-            </ul>
-          </section>
-        )}
-      </div>
-
-      <aside className="space-y-3.5" aria-label="요약">
-        <AssistantCard
-          message={
-            pending > 0 ? (
-              <>
-                검토 대기 <span className="font-display">{pending.toLocaleString()}</span>건이
-                <br />
-                기다리고 있어요
-              </>
-            ) : (
-              <>
-                검토할 후보가
-                <br />
-                없어요
-              </>
-            )
-          }
-          href={pending > 0 ? "/candidates" : undefined}
-          linkLabel="검토하러 가기 →"
-        />
-
-        <section className="rounded-lg border border-slate-200 bg-white p-4" aria-label="다가오는 일정">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[13.5px] font-semibold">다가오는 일정</h2>
-            <Link href="/calendar" className="text-xs text-ark-700 hover:underline">
-              캘린더 →
-            </Link>
+            </ol>
           </div>
-          {upcoming.length === 0 ? (
-            <p className="mt-2 text-xs text-ink-500">예정된 일정이 없습니다. 후보를 승인하면 여기에 나타납니다.</p>
-          ) : (
-            <ul className="mt-2.5 divide-y divide-slate-100">
-              {upcoming.map((event, index) => {
-                const { date } = parseIsoToKst(event.startAt!);
-                return (
-                  <li key={event.id}>
-                    <Link href={`/calendar?month=${event.startAt!.slice(0, 7)}&event=${event.id}`} className="flex items-center gap-2.5 py-2 hover:bg-slate-50">
-                      <span className={`w-10 shrink-0 rounded-[3px] py-1 text-center ${index === 0 ? "bg-slate-900 text-white" : "bg-slate-100"}`}>
-                        <span className="block font-display text-[15px] font-bold leading-tight">{date.d}</span>
-                        <span className={`block text-[9.5px] ${index === 0 ? "text-mist-300" : "text-ink-500"}`}>
-                          {date.m}월 {WEEKDAY_NAMES[weekdayOf(date)][0]}
-                        </span>
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-medium">{event.title}</span>
-                        <span className="block truncate text-[11.5px] text-ink-500">
-                          {event.allDay ? "종일" : formatClock(event.startAt!)}
-                          {event.location ? ` · ${event.location}` : event.category === "DEADLINE" ? " · 마감" : ""}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white px-4 py-3.5" aria-label="Google 캘린더">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[13.5px] font-semibold">Google 캘린더</h2>
-            <span className={`ml-auto text-xs ${connection.state === "connected" ? "text-emerald-700" : connection.state === "needs-reconnect" ? "text-amber-700" : "text-ink-500"}`}>
-              {connection.state === "connected" ? "연결됨" : connection.state === "needs-reconnect" ? "재연결 필요" : connection.state === "not-connected" ? "연결 안 됨" : "설정 미완료"}
-            </span>
+        <section className="mx-auto max-w-[1280px] px-4 pb-11 sm:px-10" aria-label="PC에서 대화 내보내기">
+          <div className="flex flex-col gap-5 rounded-[10px] bg-navy-950 px-5 py-7 sm:px-8">
+            <div className="flex flex-col gap-1.5">
+              <Eyebrow dark>EXPORT GUIDE · PC</Eyebrow>
+              <h2 className="text-2xl font-semibold text-white">PC 카카오톡에서 내보내기</h2>
+              <p className="text-[13.5px] leading-[1.7] text-mist-100">
+                설정 → 대화 내용 → 대화 내보내기(Ctrl+S). 저장한 <span className="font-display text-ark-300">.txt</span> 파일을 올립니다.
+              </p>
+            </div>
+            <ol className="grid gap-[18px] md:grid-cols-3">
+              {PC_STEPS.map((step, index) => (
+                <li key={step.image} className="flex flex-col gap-2.5">
+                  <span className="flex items-center gap-2.5 text-sm font-medium text-white">
+                    <StepNumber n={index + 1} />
+                    {step.title}
+                  </span>
+                  <div className="flex h-[200px] items-center justify-center overflow-hidden rounded-md border border-ark-300/35 bg-slate-100">
+                    <Image src={step.image} alt={step.alt} width={step.width} height={step.height} className="max-h-full w-auto max-w-full" />
+                  </div>
+                  <span className="text-[12.5px] leading-relaxed text-mist-300">{step.note}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="rounded border border-ark-300/40 bg-ark-300/10 px-4 py-3 text-[12.5px] leading-relaxed text-mist-100">
+              내보낸 파일은 이 컴퓨터에서 일정 추출에만 쓰고, 설정 화면에서 채팅방 단위로 언제든 지울 수 있습니다.
+            </p>
           </div>
-          {connection.state === "connected" ? (
-            <Link
-              href="/calendar/google?scope=important"
-              className="mt-2 block rounded border border-emerald-600 px-2 py-2 text-center text-[13px] font-medium text-emerald-700 hover:bg-emerald-50"
-            >
-              ★ 중요 일정 Google로 보내기 ({importantSendable.toLocaleString()}건)
-            </Link>
-          ) : (
-            <Link href="/calendar" className="mt-2 block rounded border border-slate-300 px-2 py-2 text-center text-[13px] text-slate-700 hover:bg-slate-50">
-              캘린더에서 연결하기
-            </Link>
-          )}
         </section>
-      </aside>
+
+        <section id="faq" className="mx-auto flex max-w-[1280px] scroll-mt-16 flex-col gap-3.5 px-4 pb-11 sm:px-10">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <Eyebrow>FAQ</Eyebrow>
+            <h2 className="text-[25px] font-semibold">자주 묻는 질문</h2>
+          </div>
+          <dl className="grid gap-3.5 md:grid-cols-3">
+            {FAQ.map((item) => (
+              <div key={item.q} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-5">
+                <dt className="text-[15px] font-semibold">{item.q}</dt>
+                <dd className="text-[13.5px] leading-[1.7] text-ink-600">{item.a}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        <section className="relative overflow-hidden bg-gradient-to-r from-navy-700 to-ark-500 px-4 py-10 sm:px-10">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(255_255_255/0.06)_1px,transparent_1px)] bg-[length:48px_48px]" aria-hidden />
+          <div className="relative mx-auto flex max-w-[1200px] flex-wrap items-center gap-6">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-[26px] font-semibold text-white">놓친 마감일이 있는지 확인해 보세요</h2>
+              <p className="text-[14.5px] text-[#eaf5fd]">대화 파일 하나면 됩니다.</p>
+            </div>
+            <div className="flex-1" />
+            <Link href="/upload" className="rounded bg-slate-900 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_3px_0_rgb(0_0_0/0.25)] hover:bg-slate-700">
+              대화 파일 업로드
+            </Link>
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-navy-950 px-4 py-5 sm:px-10">
+        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-3.5">
+          <span className="block h-3 w-3 rotate-45 bg-ark-300" aria-hidden />
+          <span className="font-display text-sm font-semibold tracking-[0.1em] text-white">ARK:U</span>
+          <span className="text-[12.5px] text-mist-300">개인용 일정 정리 도구</span>
+          <div className="flex-1" />
+          <nav className="flex flex-wrap gap-3 text-[12.5px] text-mist-300" aria-label="바닥글">
+            <a href="#intro" className="hover:text-white">
+              서비스 소개
+            </a>
+            <a href="#export" className="hover:text-white">
+              대화 내보내기 방법
+            </a>
+            <a href="#faq" className="hover:text-white">
+              자주 묻는 질문
+            </a>
+            <Link href="/upload" className="hover:text-white">
+              앱으로 →
+            </Link>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }

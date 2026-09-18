@@ -51,7 +51,7 @@ export async function deleteChat(formData: FormData) {
   if (!input.success) redirect("/settings?chatError=invalid");
   const { key, ...expected } = input.data;
   const result = deleteChatData(getDb(), key, expected);
-  for (const path of ["/", "/settings", "/candidates", "/calendar", "/calendar/google"]) revalidatePath(path);
+  for (const path of ["/upload", "/settings", "/candidates", "/calendar", "/calendar/google"]) revalidatePath(path);
   if (!result.ok) redirect(`/settings?chatError=${result.reason}`);
   const { messages, candidates, events } = result.deleted;
   redirect(`/settings?chatDeleted=${messages}.${candidates}.${events}`);

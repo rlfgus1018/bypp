@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const ITEMS = [
-  { href: "/", label: "업로드", match: (path: string) => path === "/" },
+  { href: "/upload", label: "업로드", match: (path: string) => path.startsWith("/upload") },
   { href: "/candidates", label: "일정 후보", match: (path: string) => path.startsWith("/candidates") },
   { href: "/calendar", label: "캘린더", match: (path: string) => path.startsWith("/calendar") },
   { href: "/settings", label: "설정", match: (path: string) => path.startsWith("/settings") },

@@ -24,7 +24,7 @@ Google 연동의 설계(scope, 토큰 보관, 중복 방지, 수동 확인 절�
 
 ```powershell
 npm install
-npm run dev            # http://localhost:3000  → 업로드 → 일정 후보 검토
+npm run dev            # http://localhost:3000 (소개) → /upload 업로드 → 일정 후보 검토
 ```
 
 - **추출 기간**: 파일을 고르면 먼저 월별 건수(추출 대상 / LLM 필요)만 미리 보여 주고, 메시지를 **보낸 날짜** 기준으로 추출할 기간을 고릅니다. 기간 밖의 일정성 메시지는 `OUT_OF_RANGE`로 저장만 되고, 같은 파일을 더 넓은 기간으로 다시 올리면 그때 추출됩니다.
