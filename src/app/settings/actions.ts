@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { SOURCE_KEY_PATTERN } from "@/lib/candidates/source-group";
 import { deleteChatData } from "@/lib/data/chat-data";
-import { getDb } from "@/lib/db/client";
+import { getDb, getReadDb } from "@/lib/db/client";
 import { disconnectGoogle } from "@/lib/google/connection";
 import { getGoogleRuntime } from "@/lib/google/runtime";
 import { getAccessToken } from "@/lib/google/token-service";
@@ -21,7 +21,7 @@ const refresh = () => {
 
 export async function addImportantKeyword(_previous: KeywordFormState, formData: FormData): Promise<KeywordFormState> {
   const input = String(formData.get("keyword") ?? "").slice(0, 200);
-  const result = importantKeywordsRepo(getDb()).add(input);
+  const result = importantKeywordsRepo(await getDb()).add(input);
   if (!result.ok) return { error: result.error, added: null };
   refresh();
   return { error: null, added: result.keyword.keyword };
@@ -29,13 +29,13 @@ export async function addImportantKeyword(_previous: KeywordFormState, formData:
 
 export async function removeImportantKeyword(formData: FormData) {
   const id = z.string().min(1).parse(formData.get("id"));
-  importantKeywordsRepo(getDb()).remove(id);
+  importantKeywordsRepo(await getDb()).remove(id);
   refresh();
 }
 
 /** Read-only: how many titles a word would match ("제목 일치"), before it is added. */
 export async function previewImportantKeyword(word: string): Promise<KeywordPreview> {
-  return importantKeywordsRepo(getDb()).preview(String(word).slice(0, 200));
+  return importantKeywordsRepo(await getReadDb()).preview(String(word).slice(0, 200));
 }
 
 const DeleteChatInput = z.object({
@@ -50,10 +50,12 @@ const DeleteChatInput = z.object({
 // Nothing is sent to Google; events already created there stay. The result goes back as counts only — the chat
 // title never enters a URL.
 export async function deleteChat(formData: FormData) {
-  const input = DeleteChatInput.safeParse(Object.fromEntries(["key", "imports", "messages", "candidates", "events"].map((name) => [name, formData.get(name)])));
+  const input = DeleteChatInput.safeParse(
+    Object.fromEntries(["key", "imports", "messages", "candidates", "events"].map((name) => [name, formData.get(name)])),
+  );
   if (!input.success) redirect("/settings?chatError=invalid");
   const { key, ...expected } = input.data;
-  const result = deleteChatData(getDb(), key, expected);
+  const result = deleteChatData(await getDb(), key, expected);
   for (const path of ["/upload", "/settings", "/candidates", "/calendar", "/calendar/google"]) revalidatePath(path);
   if (!result.ok) redirect(`/settings?chatError=${result.reason}`);
   const { messages, candidates, events } = result.deleted;
@@ -69,7 +71,7 @@ export async function checkGoogleConnection() {
   if (!google) redirect("/settings?google=not_configured");
   let result: string;
   try {
-    const token = await getAccessToken(getDb(), google.oauth, { nowMs: Date.now(), tokenKey: google.tokenKey, forceRefresh: true });
+    const token = await getAccessToken(await getReadDb(), google.oauth, { nowMs: Date.now(), tokenKey: google.tokenKey, forceRefresh: true });
     result = token.ok ? "check_ok" : token.reason === "network" ? "check_network" : token.reason === "not-connected" ? "check_none" : "check_revoked";
   } catch {
     // Not logging the error object: errors on this path can carry tokens.
@@ -86,7 +88,7 @@ export async function disconnectGoogleAccount() {
   if (!google) redirect("/settings?google=not_configured");
   let result: string;
   try {
-    result = await disconnectGoogle(getDb(), google.oauth, { tokenKey: google.tokenKey });
+    result = await disconnectGoogle(await getReadDb(), google.oauth, { tokenKey: google.tokenKey });
   } catch {
     result = "disconnect_failed";
   }

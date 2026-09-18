@@ -5,7 +5,7 @@ import { formatClock, formatInstant } from "@/lib/calendar/format";
 import { kstToday, nowMs } from "@/lib/calendar/month-grid";
 import { isPartnership } from "@/lib/calendar/partnership";
 import { chatTitleOf } from "@/lib/candidates/source-group";
-import { getDb } from "@/lib/db/client";
+import { getReadDb } from "@/lib/db/client";
 import { calendarEventsRepo } from "@/lib/db/repositories/calendar-events";
 import { candidatesRepo } from "@/lib/db/repositories/candidates";
 import { importsRepo } from "@/lib/db/repositories/imports";
@@ -21,8 +21,8 @@ export const dynamic = "force-dynamic";
 const UPCOMING = 3;
 
 // Rendering only reads: the local database and the environment. Nothing is sent anywhere.
-export default function HomePage() {
-  const db = getDb();
+export default async function HomePage() {
+  const db = await getReadDb();
   const statuses = messagesRepo(db).countByStatus();
   const recent = importsRepo(db).listRecent(5);
   const pending = candidatesRepo(db).countByStatus({}).PENDING;
@@ -48,11 +48,15 @@ export default function HomePage() {
 
         <div className={`rounded-lg border px-4 py-3 text-sm ${llm ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className={`rounded-[3px] px-2 py-0.5 font-display text-[11.5px] font-medium ${llm ? "bg-amber-200 text-amber-900" : "bg-slate-100 text-slate-700"}`}>
+            <span
+              className={`rounded-[3px] px-2 py-0.5 font-display text-[11.5px] font-medium ${llm ? "bg-amber-200 text-amber-900" : "bg-slate-100 text-slate-700"}`}
+            >
               {llm ? "LLM ON" : "LLM OFF"}
             </span>
             <span className={`text-[12.5px] ${llm ? "text-amber-900" : "text-ink-600"}`}>
-              {llm ? `${providerLabel} API가 활성화되어 있습니다.` : "모든 처리가 이 컴퓨터 안에서 이루어집니다. 애매한 메시지는 저신뢰 추정으로 추출합니다."}
+              {llm
+                ? `${providerLabel} API가 활성화되어 있습니다.`
+                : "모든 처리가 이 컴퓨터 안에서 이루어집니다. 애매한 메시지는 저신뢰 추정으로 추출합니다."}
             </span>
             <Link href="/settings#extraction" className="ml-auto text-xs text-ark-700 hover:underline">
               설정에서 확인
@@ -61,8 +65,8 @@ export default function HomePage() {
           {llm && (
             <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900">
               ⚠ 일정 해석이 필요한 일부 카카오톡 메시지(전화번호·이메일·URL 마스킹, 보낸 사람 제외
-              {llm.batchSize > 1 ? `, 같은 방의 메시지를 한 요청에 최대 ${llm.batchSize}건씩` : ""})가 외부 {providerLabel} API로 전송될 수 있습니다. 실제
-              개인/타인의 대화 데이터를 전송하기 전에 선택한 공급자의 최신 데이터 처리 정책을 확인하세요.{" "}
+              {llm.batchSize > 1 ? `, 같은 방의 메시지를 한 요청에 최대 ${llm.batchSize}건씩` : ""})가 외부 {providerLabel} API로 전송될 수 있습니다.
+              실제 개인/타인의 대화 데이터를 전송하기 전에 선택한 공급자의 최신 데이터 처리 정책을 확인하세요.{" "}
               <span className="font-display text-xs">({llmLabel})</span>
             </p>
           )}
@@ -140,7 +144,10 @@ export default function HomePage() {
                 const { date } = parseIsoToKst(event.startAt!);
                 return (
                   <li key={event.id}>
-                    <Link href={`/calendar?month=${event.startAt!.slice(0, 7)}&event=${event.id}`} className="flex items-center gap-2.5 py-2 hover:bg-slate-50">
+                    <Link
+                      href={`/calendar?month=${event.startAt!.slice(0, 7)}&event=${event.id}`}
+                      className="flex items-center gap-2.5 py-2 hover:bg-slate-50"
+                    >
                       <span className={`w-10 shrink-0 rounded-[3px] py-1 text-center ${index === 0 ? "bg-slate-900 text-white" : "bg-slate-100"}`}>
                         <span className="block font-display text-[15px] font-bold leading-tight">{date.d}</span>
                         <span className={`block text-[9.5px] ${index === 0 ? "text-mist-300" : "text-ink-500"}`}>
@@ -165,8 +172,16 @@ export default function HomePage() {
         <section className="rounded-lg border border-slate-200 bg-white px-4 py-3.5" aria-label="Google 캘린더">
           <div className="flex items-center gap-2">
             <h2 className="text-[13.5px] font-semibold">Google 캘린더</h2>
-            <span className={`ml-auto text-xs ${connection.state === "connected" ? "text-emerald-700" : connection.state === "needs-reconnect" ? "text-amber-700" : "text-ink-500"}`}>
-              {connection.state === "connected" ? "연결됨" : connection.state === "needs-reconnect" ? "재연결 필요" : connection.state === "not-connected" ? "연결 안 됨" : "설정 미완료"}
+            <span
+              className={`ml-auto text-xs ${connection.state === "connected" ? "text-emerald-700" : connection.state === "needs-reconnect" ? "text-amber-700" : "text-ink-500"}`}
+            >
+              {connection.state === "connected"
+                ? "연결됨"
+                : connection.state === "needs-reconnect"
+                  ? "재연결 필요"
+                  : connection.state === "not-connected"
+                    ? "연결 안 됨"
+                    : "설정 미완료"}
             </span>
           </div>
           {connection.state === "connected" ? (
@@ -177,7 +192,10 @@ export default function HomePage() {
               ★ 중요 일정 Google로 보내기 ({importantSendable.toLocaleString()}건)
             </Link>
           ) : (
-            <Link href="/calendar" className="mt-2 block rounded border border-slate-300 px-2 py-2 text-center text-[13px] text-slate-700 hover:bg-slate-50">
+            <Link
+              href="/calendar"
+              className="mt-2 block rounded border border-slate-300 px-2 py-2 text-center text-[13px] text-slate-700 hover:bg-slate-50"
+            >
               캘린더에서 연결하기
             </Link>
           )}

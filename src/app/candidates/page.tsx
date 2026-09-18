@@ -7,7 +7,7 @@ import { ImportanceTabs } from "@/components/ImportanceTabs";
 import { StatusTabs } from "@/components/StatusTabs";
 import { slotOfCandidate } from "@/lib/calendar/duplicates";
 import { normalizeTimes } from "@/lib/calendar/normalize";
-import { getDb } from "@/lib/db/client";
+import { getReadDb } from "@/lib/db/client";
 import { calendarEventsRepo } from "@/lib/db/repositories/calendar-events";
 import type { CandidateWithSource } from "@/lib/db/repositories/candidates";
 import { getSyncMarks } from "@/lib/google/sync-view";
@@ -35,7 +35,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
   const doneMatch = typeof params.done === "string" ? params.done.match(/^(\d+):(PENDING|APPROVED|IGNORED)$/) : null;
   const done = doneMatch ? { count: Number(doneMatch[1]), target: doneMatch[2] as keyof typeof DONE_LABEL } : null;
 
-  const db = getDb();
+  const db = await getReadDb();
   const view = loadReview(db, values, active);
   const { scope } = view;
   const totalCandidates = view.groups.reduce((sum, group) => sum + group.total, 0);
@@ -72,7 +72,12 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
   return (
     <div className="grid gap-5 lg:grid-cols-[272px_minmax(0,1fr)]">
       <ChatSidebar
-        chats={view.groups.map((group) => ({ key: group.key, title: group.title, counts: group.counts, important: view.importantByGroup.get(group.key) ?? 0 }))}
+        chats={view.groups.map((group) => ({
+          key: group.key,
+          title: group.title,
+          counts: group.counts,
+          important: view.importantByGroup.get(group.key) ?? 0,
+        }))}
         selected={scope.kind === "group" ? scope.group.key : ""}
         hrefFor={(source) => hrefWith(source ? { source } : {})}
         keywords={view.keywords.map((keyword) => keyword.keyword)}
@@ -84,11 +89,17 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
           <div className="min-w-0">
             <h1 className="text-[21px] font-semibold">일정 후보</h1>
             <p className="mt-0.5 text-[12.5px] text-ink-600">
-              추출한 제목·날짜·장소를 원문과 함께 확인하고 승인하거나 무시합니다. 승인하면 이 앱의 캘린더에 추가되며, Google에는 아무것도 전송되지 않습니다.
+              추출한 제목·날짜·장소를 원문과 함께 확인하고 승인하거나 무시합니다. 승인하면 이 앱의 캘린더에 추가되며, Google에는 아무것도 전송되지
+              않습니다.
             </p>
           </div>
           <div className="ml-auto">
-            <ImportanceTabs active={values.importance} allCount={view.scopeCounts.all} importantCount={view.scopeCounts.important} hrefFor={importanceHref} />
+            <ImportanceTabs
+              active={values.importance}
+              allCount={view.scopeCounts.all}
+              importantCount={view.scopeCounts.important}
+              hrefFor={importanceHref}
+            />
           </div>
         </div>
 
@@ -195,7 +206,8 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
               ))}
               {shown.length < total && (
                 <p className="text-center text-xs text-ink-500">
-                  {values.sort === "schedule" ? "일정 날짜순" : "최근 메시지 기준"} {shown.length}건만 표시 중 (이 채팅방 전체 {total.toLocaleString()}
+                  {values.sort === "schedule" ? "일정 날짜순" : "최근 메시지 기준"} {shown.length}건만 표시 중 (이 채팅방 전체{" "}
+                  {total.toLocaleString()}
                   건). {scope.kind === "group" ? "검토를 진행하면 다음 후보가 나타납니다." : "‘이 채팅방만 보기’로 더 많이 볼 수 있습니다."}
                 </p>
               )}

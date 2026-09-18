@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db/client";
+import { getReadDb } from "@/lib/db/client";
 import { ExportDecodeError } from "@/lib/kakao-export/decoder";
 import { previewKakaoExport } from "@/lib/pipeline/ingest";
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    return Response.json(await previewKakaoExport(getDb(), { bytes, filename: file.name }));
+    return Response.json(await previewKakaoExport(await getReadDb(), { bytes, filename: file.name }));
   } catch (error) {
     if (error instanceof ExportDecodeError) return Response.json({ error: error.message, code: error.code }, { status: 422 });
     console.error("preview failed:", error instanceof Error ? error.message : error);

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   try {
     const result = await completeConnection(
-      getDb(),
+      await getDb(),
       google.oauth,
       { code: params.get("code"), state: params.get("state"), error: params.get("error"), cookieState },
       { nowMs: Date.now(), tokenKey: google.tokenKey },

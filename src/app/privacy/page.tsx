@@ -14,8 +14,8 @@ export default function PrivacyPage() {
     <LegalPage eyebrow="PRIVACY POLICY" title="개인정보처리방침" updated="2026-09-19">
       <LegalSection title="1. 서비스 개요">
         <p>
-          ARK:U는 사용자가 올린 카카오톡 대화 내보내기 파일에서 일정 후보를 찾아 검토하고, 승인한 일정을 서비스 안의 캘린더에서 관리하며, 사용자가 원할 때만 Google
-          Calendar에 일정을 생성하는 개인용 도구입니다. 현재 <strong>개발/해커톤 단계</strong>의 서비스입니다.
+          ARK:U는 사용자가 올린 카카오톡 대화 내보내기 파일에서 일정 후보를 찾아 검토하고, 승인한 일정을 서비스 안의 캘린더에서 관리하며, 사용자가
+          원할 때만 Google Calendar에 일정을 생성하는 개인용 도구입니다. 현재 <strong>개발/해커톤 단계</strong>의 서비스입니다.
         </p>
       </LegalSection>
 
@@ -31,19 +31,27 @@ export default function PrivacyPage() {
             <strong>Google 계정 정보</strong>: Google 연결 시 받은 계정 식별자와 이메일 주소, 그리고 일정 생성을 위한 OAuth 토큰.
           </li>
         </ul>
-        <p>이 정보는 일정 추출·검토·캘린더 관리와 사용자가 요청한 Google Calendar 일정 생성에만 사용하며, 서비스가 운영되는 서버의 데이터베이스에 저장됩니다.</p>
+        <p>
+          이 정보는 일정 추출·검토·캘린더 관리와 사용자가 요청한 Google Calendar 일정 생성에만 사용하며, 서비스가 운영되는 서버에 저장됩니다. 로그인
+          없이 브라우저마다 발급되는 익명 세션 쿠키(bypp_sid)로 구분되는 <strong>브라우저별 별도 데이터베이스</strong>에 저장되며, 다른 방문자의
+          데이터나 Google 연결 상태와 공유되지 않습니다. 쿠키를 지우면 같은 데이터에 다시 접근할 수 없습니다.
+        </p>
       </LegalSection>
 
       <LegalSection title="3. Google OAuth 및 Calendar 권한">
         <ul>
           <li>
-            요청하는 권한은 <strong>내 소유 캘린더의 일정 생성·조회</strong>(calendar.events.owned)와 계정 식별용 <strong>openid, email</strong>뿐입니다.
+            요청하는 권한은 <strong>내 소유 캘린더의 일정 생성·조회</strong>(calendar.events.owned)와 계정 식별용 <strong>openid, email</strong>
+            뿐입니다.
           </li>
           <li>
-            <strong>사용자가 직접 전송을 요청한 경우에만</strong> Google Calendar에 일정을 생성합니다. 업로드·추출·승인·Google 연결만으로는 아무것도 전송되지 않으며, 자동
-            전송이나 양방향 동기화는 없습니다.
+            <strong>사용자가 직접 전송을 요청한 경우에만</strong> Google Calendar에 일정을 생성합니다. 업로드·추출·승인·Google 연결만으로는 아무것도
+            전송되지 않으며, 자동 전송이나 양방향 동기화는 없습니다.
           </li>
-          <li>Google로 보내는 내용은 일정의 제목, 시작·종료 시각, 장소와 중복 생성을 막기 위한 비공개 식별자입니다. 원본 메시지나 보낸 사람 정보는 보내지 않습니다.</li>
+          <li>
+            Google로 보내는 내용은 일정의 제목, 시작·종료 시각, 장소와 중복 생성을 막기 위한 비공개 식별자입니다. 원본 메시지나 보낸 사람 정보는
+            보내지 않습니다.
+          </li>
           <li>서비스는 Google Calendar의 기존 일정을 읽어 분석하거나 수정·삭제하지 않습니다(자신이 만든 일정의 생성 여부 확인만 수행).</li>
           <li>OAuth 토큰은 서버에만 저장되며 브라우저나 제3자에게 전달되지 않습니다.</li>
         </ul>
@@ -62,8 +70,8 @@ export default function PrivacyPage() {
             사용자의 데이터를 <strong>판매하지 않으며</strong>, 광고 목적으로 사용하거나 제공하지 않습니다.
           </li>
           <li>
-            운영자가 외부 LLM 추출 기능을 켠 경우에 한해, 일정 해석이 필요한 일부 메시지의 본문(전화번호·이메일·URL을 가린 상태, 보낸 사람 제외)이 일정 추출을 위해 외부 LLM
-            API 제공자에게 전송될 수 있습니다. 이 기능의 사용 여부는 업로드 화면에 표시됩니다.
+            운영자가 외부 LLM 추출 기능을 켠 경우에 한해, 일정 해석이 필요한 일부 메시지의 본문(전화번호·이메일·URL을 가린 상태, 보낸 사람 제외)이
+            일정 추출을 위해 외부 LLM API 제공자에게 전송될 수 있습니다. 이 기능의 사용 여부는 업로드 화면에 표시됩니다.
           </li>
         </ul>
       </LegalSection>
@@ -84,8 +92,8 @@ export default function PrivacyPage() {
 
       <LegalSection title="6. 개발 단계 안내">
         <p>
-          ARK:U는 개발/해커톤 단계의 서비스로 기능과 데이터 처리 방식이 바뀔 수 있고, 예고 없이 데이터가 초기화될 수 있습니다. 민감한 대화는 올리지 않는 것을 권장합니다.
-          변경 사항은 이 페이지에 반영합니다.
+          ARK:U는 개발/해커톤 단계의 서비스로 기능과 데이터 처리 방식이 바뀔 수 있고, 예고 없이 데이터가 초기화될 수 있습니다. 민감한 대화는 올리지
+          않는 것을 권장합니다. 변경 사항은 이 페이지에 반영합니다.
         </p>
       </LegalSection>
 

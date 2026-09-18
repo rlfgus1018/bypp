@@ -17,7 +17,7 @@ const Input = z.object({ id: z.string().min(1), status: CandidateStatusSchema })
 export async function setCandidateStatus(formData: FormData) {
   const { id, status } = Input.parse({ id: formData.get("id"), status: formData.get("status") });
   try {
-    applyCandidateStatus(getDb(), id, status);
+    applyCandidateStatus(await getDb(), id, status);
   } catch (error) {
     if (!(error instanceof EventSyncInProgressError)) throw error;
     // The candidate's calendar event is being sent to Google right now; nothing was changed (one transaction).
@@ -32,7 +32,7 @@ const ImportanceInput = z.object({ id: z.string().min(1), importance: z.enum(["i
 // "중요로 / 중요 아님 / 자동". The derived calendar event (if approved) gets the same override, in one transaction.
 export async function setCandidateImportance(formData: FormData) {
   const { id, importance } = ImportanceInput.parse({ id: formData.get("id"), importance: formData.get("importance") });
-  setCandidateImportanceOverride(getDb(), id, importance === "auto" ? null : importance);
+  setCandidateImportanceOverride(await getDb(), id, importance === "auto" ? null : importance);
   revalidatePath("/candidates");
   revalidatePath("/calendar");
 }
@@ -57,7 +57,7 @@ export type BulkState = { error: string | null };
 // Applies one status to EVERYTHING the current tab + search + chat matches (not just the cards on screen).
 // All rules live in ./bulk-change.ts; this wrapper only adds what needs Next.js.
 export async function setFilteredCandidatesStatus(_previous: BulkState, formData: FormData): Promise<BulkState> {
-  const result = changeFilteredCandidates(getDb(), formParams(formData));
+  const result = changeFilteredCandidates(await getDb(), formParams(formData));
   if (!result.ok) {
     if (result.listChanged) revalidatePath("/candidates");
     return { error: result.error };

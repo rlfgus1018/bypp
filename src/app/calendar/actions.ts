@@ -25,7 +25,7 @@ export async function updateCalendarEvent(_previous: EventFormState, formData: F
   const id = Id.parse(formData.get("id"));
   const parsed = parseEventInput(readEventForm(formData));
   if (!parsed.ok) return { errors: parsed.errors };
-  if (!calendarEventsRepo(getDb()).update(id, parsed.changes)) return { errors: ["일정을 찾을 수 없습니다. 이미 제거되었을 수 있습니다."] };
+  if (!calendarEventsRepo(await getDb()).update(id, parsed.changes)) return { errors: ["일정을 찾을 수 없습니다. 이미 제거되었을 수 있습니다."] };
 
   revalidatePath("/calendar");
   // Lands on the event's own month when it has a date.
@@ -37,7 +37,7 @@ export async function updateCalendarEvent(_previous: EventFormState, formData: F
 export async function createCalendarEvent(_previous: EventFormState, formData: FormData): Promise<EventFormState> {
   const parsed = parseEventInput(readEventForm(formData));
   if (!parsed.ok) return { errors: parsed.errors };
-  const id = calendarEventsRepo(getDb()).createManual({ ...parsed.changes, category: parsed.changes.category ?? "EVENT" });
+  const id = calendarEventsRepo(await getDb()).createManual({ ...parsed.changes, category: parsed.changes.category ?? "EVENT" });
 
   revalidatePath("/calendar");
   const context = readCalendarContext(formData);
@@ -49,7 +49,7 @@ export async function removeCalendarEvent(formData: FormData) {
   const id = Id.parse(formData.get("id"));
   const context = readCalendarContext(formData);
   try {
-    removeEventFromCalendar(getDb(), id);
+    removeEventFromCalendar(await getDb(), id);
   } catch (error) {
     if (!(error instanceof EventSyncInProgressError)) throw error;
     // A create request for this event is in flight; removing it now could lose the record of its success.
@@ -66,7 +66,7 @@ const ImportanceInput = z.object({ id: Id, importance: z.enum(["important", "not
 // override in the same transaction. Local only: nothing is sent to Google, and nothing already on Google changes.
 export async function setEventImportance(formData: FormData) {
   const { id, importance } = ImportanceInput.parse({ id: formData.get("id"), importance: formData.get("importance") });
-  setCalendarEventImportanceOverride(getDb(), id, importance === "auto" ? null : importance);
+  setCalendarEventImportanceOverride(await getDb(), id, importance === "auto" ? null : importance);
   revalidatePath("/calendar");
   revalidatePath("/candidates");
 
@@ -86,7 +86,7 @@ export async function createGoogleCalendarEvent(_previous: GoogleSyncState, form
 
   let outcome: SyncOutcome;
   try {
-    outcome = await createGoogleEvent({ db: getDb(), oauth: google.oauth, api: google.api, tokenKey: google.tokenKey }, id);
+    outcome = await createGoogleEvent({ db: await getDb(), oauth: google.oauth, api: google.api, tokenKey: google.tokenKey }, id);
   } catch {
     // Not logging the error object: errors on this path can carry tokens. The lease expires by itself, and the
     // next attempt first checks whether the event already exists on Google.
@@ -114,7 +114,9 @@ export async function sendEventsToGoogle(ids: string[], scope: "important" | "al
   if (!google) return { results: [], stopped: "not-connected", unsent: parsed.data };
 
   try {
-    return await sendMany({ db: getDb(), oauth: google.oauth, api: google.api, tokenKey: google.tokenKey }, parsed.data, { scope: parsedScope.data });
+    return await sendMany({ db: await getDb(), oauth: google.oauth, api: google.api, tokenKey: google.tokenKey }, parsed.data, {
+      scope: parsedScope.data,
+    });
   } finally {
     revalidatePath("/calendar");
   }

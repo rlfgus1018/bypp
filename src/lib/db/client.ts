@@ -5,6 +5,7 @@ import { backfillApprovedCandidates } from "@/lib/calendar/candidate-event-link"
 import { normalizeForMatch } from "@/lib/importance/match";
 import { backupDb } from "./backup";
 import { ADDED_COLUMNS, SCHEMA_SQL, SCHEMA_VERSION } from "./schema";
+import { isSessionId, openSessionDb, SESSION_COOKIE, sessionDir } from "./session";
 
 export type Db = Database.Database;
 
@@ -48,13 +49,65 @@ function migrate(db: Db): void {
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
 }
 
-// One connection per process, surviving Next.js dev hot reloads.
-const globalForDb = globalThis as unknown as { __byppDb?: Db };
+// One connection per process, surviving Next.js dev hot reloads (single-database mode).
+const globalForDb = globalThis as unknown as { __byppDb?: Db; __byppEmptyDb?: Db };
 
-export function getDb(): Db {
+/** A connection kept across a hot reload may predate a schema change or a SQL function added in that reload. */
+function refreshed(db: Db): Db {
+  registerFunctions(db);
+  if (db.pragma("user_version", { simple: true }) !== SCHEMA_VERSION) migrate(db);
+  return db;
+}
+
+function singleDb(): Db {
   globalForDb.__byppDb ??= createDb(process.env.DB_PATH || "./data/bypp.db");
-  // A connection kept across a hot reload may predate a schema change or a SQL function added in that reload.
-  registerFunctions(globalForDb.__byppDb);
-  if (globalForDb.__byppDb.pragma("user_version", { simple: true }) !== SCHEMA_VERSION) migrate(globalForDb.__byppDb);
-  return globalForDb.__byppDb;
+  return refreshed(globalForDb.__byppDb);
+}
+
+/** The schema with no rows, in memory and read-only: what a session that has stored nothing yet reads from. */
+function emptyDb(): Db {
+  if (!globalForDb.__byppEmptyDb?.open) {
+    const db = createDb(":memory:");
+    db.pragma("query_only = ON"); // shared by every such session: nothing may ever be written to it
+    globalForDb.__byppEmptyDb = db;
+  }
+  registerFunctions(globalForDb.__byppEmptyDb);
+  return globalForDb.__byppEmptyDb;
+}
+
+/** The current request's session id (set by src/proxy.ts), or null. Read from the HttpOnly cookie only. */
+async function requestSessionId(): Promise<string | null> {
+  const { cookies } = await import("next/headers");
+  const value = (await cookies()).get(SESSION_COOKIE)?.value;
+  return isSessionId(value) ? value : null;
+}
+
+/**
+ * The database for code that WRITES (uploads, server actions, the Google connection).
+ * Session mode (BYPP_SESSION_DIR): this browser's own database, created on its first write. Otherwise the single
+ * database. A session database is only ever reached through the requesting browser's own cookie.
+ */
+export async function getDb(): Promise<Db> {
+  const dir = sessionDir();
+  if (!dir) return singleDb();
+  const sessionId = await requestSessionId();
+  if (!sessionId) throw new Error("no session"); // the proxy gives every request one; never fall back to a shared DB
+  return refreshed(openSessionDb(dir, sessionId, { create: true, open: createDb })!);
+}
+
+/**
+ * The database for code that only READS (page renders, counts). Same as getDb(), except that a session which
+ * has stored nothing yet gets an empty read-only database: just visiting pages creates no file.
+ */
+export async function getReadDb(): Promise<Db> {
+  const dir = sessionDir();
+  if (!dir) return singleDb();
+  const sessionId = await requestSessionId();
+  const db = sessionId ? openSessionDb(dir, sessionId, { create: false, open: createDb }) : null;
+  return db ? refreshed(db) : emptyDb();
+}
+
+/** Keys per-session in-process state (e.g. the extraction queue). Never shown, logged or sent anywhere. */
+export async function sessionKey(): Promise<string> {
+  return sessionDir() ? ((await requestSessionId()) ?? "none") : "single";
 }

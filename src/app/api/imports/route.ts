@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const summary = await ingestKakaoExport(getDb(), { bytes, filename: file.name }, range);
+    const summary = await ingestKakaoExport(await getDb(), { bytes, filename: file.name }, range);
     return Response.json(summary);
   } catch (error) {
     if (error instanceof ExportDecodeError) return Response.json({ error: error.message, code: error.code }, { status: 422 });

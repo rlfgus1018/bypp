@@ -3,7 +3,7 @@ import { Chakra_Petch, IBM_Plex_Sans_KR } from "next/font/google";
 import { AppFrame } from "@/components/AppFrame";
 import { AppHeader } from "@/components/AppHeader";
 import { ExtractionProvider } from "@/components/ExtractionProvider";
-import { getDb } from "@/lib/db/client";
+import { getReadDb } from "@/lib/db/client";
 import { candidatesRepo } from "@/lib/db/repositories/candidates";
 import { getConnectionView } from "@/lib/google/connection";
 import { isGoogleConfigured } from "@/lib/google/runtime";
@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 // The header shows live counts from the local database: never prerender (a build must not open the DB).
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Read-only: two cheap queries for the header. Nothing here writes or calls Google.
-  const db = getDb();
+  const db = await getReadDb();
   const pendingCount = candidatesRepo(db).countByStatus({}).PENDING;
   const google = getConnectionView(db, isGoogleConfigured()).state;
 

@@ -13,7 +13,7 @@ import { calendarHref, contextFields, toCalendarTab, type CalendarContext, type 
 import { readSourceParams } from "@/lib/calendar/source-filter";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { weekdayOf, WEEKDAY_NAMES } from "@/lib/schedule/kst";
-import { getDb } from "@/lib/db/client";
+import { getReadDb } from "@/lib/db/client";
 import { planBulkSend } from "@/lib/google/bulk-plan";
 import { getConnectionView } from "@/lib/google/connection";
 import { isGoogleConfigured } from "@/lib/google/runtime";
@@ -32,7 +32,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const day = parseDay(one("day"));
   // A selected day decides the month when none is given, so day links work on their own.
   const month = parseMonth(one("month")) ?? (day ? { y: day.y, m: day.m } : { y: today.y, m: today.m });
-  const db = getDb();
+  const db = await getReadDb();
   // ?src= may repeat: the chosen sources (★ 중요, chats, 직접 추가) — an event shows when it matches any of them.
   const selection = readSourceParams(params.src);
   const view = loadCalendarMonth(db, month, {
@@ -69,14 +69,26 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     <section className="rounded-lg border border-slate-300 bg-white p-4 text-sm" aria-label="새 일정">
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-semibold">새 일정 직접 추가</h2>
-        <Link href={hrefFor({ day: selectedDayKey ?? undefined })} className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50">
+        <Link
+          href={hrefFor({ day: selectedDayKey ?? undefined })}
+          className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
+        >
           닫기
         </Link>
       </div>
       <div className="mt-2">
         <CalendarEventForm
           returnFields={contextFields(context)}
-          initial={{ title: "", location: "", allDay: false, startDate: selectedDayKey ?? "", startTime: "", endDate: "", endTime: "", category: "EVENT" }}
+          initial={{
+            title: "",
+            location: "",
+            allDay: false,
+            startDate: selectedDayKey ?? "",
+            startTime: "",
+            endDate: "",
+            endTime: "",
+            category: "EVENT",
+          }}
         />
       </div>
     </section>
@@ -103,14 +115,18 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[12.5px] text-ink-600">
-        승인한 일정이 자동으로 들어옵니다. Google 캘린더에는 자동으로 아무것도 보내지 않으며, 일정을 열어 직접 누르거나 &ldquo;Google로 한꺼번에 보내기&rdquo;에서 확인한
-        일정만 한 번 생성됩니다.
+        승인한 일정이 자동으로 들어옵니다. Google 캘린더에는 자동으로 아무것도 보내지 않으며, 일정을 열어 직접 누르거나 &ldquo;Google로 한꺼번에
+        보내기&rdquo;에서 확인한 일정만 한 번 생성됩니다.
       </p>
 
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[13px]">
         <nav className="flex flex-wrap items-center gap-1.5" aria-label="캘린더 보기">
           <h1 className="sr-only">캘린더</h1>
-          <Link href={hrefFor({ tab: "calendar", day: selectedDayKey ?? undefined })} className={tabClass(onCalendar)} aria-current={onCalendar ? "page" : undefined}>
+          <Link
+            href={hrefFor({ tab: "calendar", day: selectedDayKey ?? undefined })}
+            className={tabClass(onCalendar)}
+            aria-current={onCalendar ? "page" : undefined}
+          >
             일정
           </Link>
           <Link
@@ -128,7 +144,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <CalendarSourceFilter chips={view.sourceChips} selected={context.src} hrefFor={sourceHref} />
       </div>
       {onCalendar && partnerships.active.length > 0 && (
-        <p className="-mt-1 text-xs text-ink-500">진행 중인 제휴 {partnerships.active.length.toLocaleString()}건은 달력에 표시하지 않고 제휴 탭에 모았습니다.</p>
+        <p className="-mt-1 text-xs text-ink-500">
+          진행 중인 제휴 {partnerships.active.length.toLocaleString()}건은 달력에 표시하지 않고 제휴 탭에 모았습니다.
+        </p>
       )}
       {view.sourceFilter === "invalid" && (
         <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
@@ -309,7 +327,11 @@ function ImportantList({
 }) {
   const total = groups.upcoming.length + groups.undated.length + groups.past.length;
   if (total === 0 && filtering) {
-    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">선택한 출처에 해당하는 중요 일정이 없습니다.</p>;
+    return (
+      <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">
+        선택한 출처에 해당하는 중요 일정이 없습니다.
+      </p>
+    );
   }
   if (total === 0) {
     return (
@@ -417,7 +439,11 @@ function PartnershipList({
 }) {
   const total = groups.active.length + groups.upcoming.length + groups.ended.length;
   if (total === 0 && filtering) {
-    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">선택한 출처에 해당하는 제휴 일정이 없습니다.</p>;
+    return (
+      <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">
+        선택한 출처에 해당하는 제휴 일정이 없습니다.
+      </p>
+    );
   }
   if (total === 0) {
     return (

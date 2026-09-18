@@ -14,7 +14,7 @@ export async function GET() {
   const google = getGoogleRuntime();
   if (!google) return localRedirect("/calendar?google=not_configured");
 
-  const { url, state } = beginConnection(getDb(), google.oauth, Date.now());
+  const { url, state } = beginConnection(await getDb(), google.oauth, Date.now());
   (await cookies()).set(STATE_COOKIE, state, {
     httpOnly: true,
     sameSite: "lax", // must survive the top-level redirect back from Google
