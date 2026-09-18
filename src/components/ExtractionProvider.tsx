@@ -140,7 +140,10 @@ export function ExtractionProvider({ children }: { children: React.ReactNode }) 
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ limit: 25, retryFailed: retryFailed && first }),
           });
-          if (!response.ok) throw new Error("추출 요청이 실패했습니다.");
+          if (!response.ok) {
+            const failure = (await response.json().catch(() => null)) as { error?: unknown } | null;
+            throw new Error(typeof failure?.error === "string" ? failure.error : "추출 요청이 실패했습니다.");
+          }
           const batch = (await response.json()) as BatchResult;
           const previous = totalsRef.current;
           const byExtractor = { ...previous.byExtractor };

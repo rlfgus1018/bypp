@@ -3,6 +3,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { backfillApprovedCandidates } from "@/lib/calendar/candidate-event-link";
 import { normalizeForMatch } from "@/lib/importance/match";
+import { backupDb } from "./backup";
 import { ADDED_COLUMNS, SCHEMA_SQL, SCHEMA_VERSION } from "./schema";
 
 export type Db = Database.Database;
@@ -28,9 +29,14 @@ function registerFunctions(db: Db): void {
   withFunctions.add(db);
 }
 
-/** Idempotent: creates missing tables and adds columns introduced after a database was first created. */
+/**
+ * Idempotent: creates missing tables and adds columns introduced after a database was first created.
+ * An existing file database is copied to data/backups first whenever it is about to be upgraded.
+ */
 function migrate(db: Db): void {
   const previous = db.pragma("user_version", { simple: true }) as number;
+  const hasTables = (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table'").get() as { n: number }).n > 0;
+  if (previous < SCHEMA_VERSION && hasTables) backupDb(db, `before-v${SCHEMA_VERSION}`);
   db.exec(SCHEMA_SQL);
   for (const { table, column, ddl } of ADDED_COLUMNS) {
     const columns = db.pragma(`table_info(${table})`) as { name: string }[];

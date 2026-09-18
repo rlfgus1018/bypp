@@ -36,5 +36,11 @@ export async function POST(request: Request) {
     return { ...result, llmRequests: metrics?.requests ?? 0, invalidJsonResponses: metrics?.invalidJsonResponses ?? 0 };
   });
   queue.__byppExtraction = run.catch(() => undefined);
-  return Response.json(await run);
+  try {
+    return Response.json(await run);
+  } catch (error) {
+    // Only the error's name: messages on this path can carry request details. Pending messages stay pending.
+    console.error("extraction batch failed:", error instanceof Error ? error.name : "unknown");
+    return Response.json({ error: "추출 중 서버 오류가 발생했습니다. 남은 메시지는 그대로 대기 중이며, 다시 시도할 수 있습니다." }, { status: 500 });
+  }
 }

@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "inspect:export": "tsx scripts/inspect-export.ts",
     "verify:pipeline": "tsx scripts/verify-pipeline.ts",
-    "repair:calendar": "tsx scripts/repair-calendar.ts"
+    "repair:calendar": "tsx scripts/repair-calendar.ts",
+    "backup:db": "tsx scripts/backup-db.ts"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",

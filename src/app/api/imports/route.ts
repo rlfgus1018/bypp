@@ -17,7 +17,8 @@ function readRange(form: FormData): ExtractionRange | null {
 
 // Thin wrapper: parse → dedup → detect are all cheap and run synchronously here.
 export async function POST(request: Request) {
-  const form = await request.formData();
+  const form = await request.formData().catch(() => null);
+  if (!form) return Response.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
   const file = form.get("file");
   if (!(file instanceof File)) return Response.json({ error: "파일이 없습니다." }, { status: 400 });
   if (file.size === 0 || file.size > MAX_BYTES) {

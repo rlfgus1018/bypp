@@ -3,7 +3,7 @@ import { chatTitleOf } from "@/lib/candidates/source-group";
 import { getDb } from "@/lib/db/client";
 import { importsRepo } from "@/lib/db/repositories/imports";
 import { messagesRepo } from "@/lib/db/repositories/messages";
-import { describeLlm, resolveLlmConfig } from "@/lib/schedule/factory";
+import { describeLlm, llmConfigWarnings, resolveLlmConfig } from "@/lib/schedule/factory";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,7 @@ export default function HomePage() {
   // Computed on the server; only this plain string (never the key) reaches the browser.
   const llm = resolveLlmConfig();
   const llmLabel = describeLlm(llm);
+  const configWarnings = llmConfigWarnings();
   const providerLabel = llm?.provider === "openrouter" ? "OpenRouter/DeepSeek" : "Google Gemini";
 
   return (
@@ -27,6 +28,11 @@ export default function HomePage() {
 
       <div className={`rounded-lg border p-3 text-sm ${llm ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
         <p className="font-mono text-xs">{llmLabel}</p>
+        {configWarnings.map((warning) => (
+          <p key={warning} className="mt-1 text-xs text-red-700" role="alert">
+            {warning} (.env.local 확인 후 개발 서버를 다시 시작하세요)
+          </p>
+        ))}
         {llm ? (
           <p className="mt-2 text-amber-900">
             ⚠ {providerLabel} API가 활성화되어 있습니다. 일정 해석이 필요한 일부 카카오톡 메시지(전화번호·이메일·URL 마스킹, 보낸 사람 제외

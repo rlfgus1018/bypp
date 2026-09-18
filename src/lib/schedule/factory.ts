@@ -31,11 +31,22 @@ const wholeNumber = (raw: string | undefined, min: number, max: number): number 
   return Number.isInteger(value) && value >= min && value <= max ? value : null;
 };
 
-function resolveConcurrency(raw: string | undefined): number {
-  if (raw === undefined || raw.trim() === "") return DEFAULT_LLM_CONCURRENCY;
-  const value = wholeNumber(raw, 1, MAX_LLM_CONCURRENCY);
-  if (value === null) throw new Error(`LLM_CONCURRENCY must be a whole number from 1 to ${MAX_LLM_CONCURRENCY}`);
-  return value;
+/** Numeric settings with their allowed range. A bad value falls back to the default (see llmConfigWarnings). */
+const NUMERIC_SETTINGS = [
+  { name: "LLM_BATCH_SIZE", min: 1, max: MAX_LLM_BATCH_SIZE },
+  { name: "LLM_CONCURRENCY", min: 1, max: MAX_LLM_CONCURRENCY },
+  { name: "LLM_RPM", min: 0, max: 100_000 },
+] as const;
+
+/**
+ * Settings that were given but are not usable, as safe Korean text for the home page. They never break
+ * the app: each such value is replaced by its default. (Values are not echoed — only names and ranges.)
+ */
+export function llmConfigWarnings(env: Env = process.env): string[] {
+  return NUMERIC_SETTINGS.filter(({ name, min, max }) => {
+    const raw = env[name];
+    return raw !== undefined && raw.trim() !== "" && wholeNumber(raw, min, max) === null;
+  }).map(({ name, min, max }) => `${name} 값이 올바르지 않아 기본값을 사용합니다(${min}~${max}의 정수).`);
 }
 
 /** LLM_RPM wins; the older LLM_MIN_INTERVAL_MS is still honoured (4500 ms → 13/min, 0 → unlimited). */
@@ -62,7 +73,7 @@ export function resolveLlmConfig(env: Env = process.env): LlmConfig {
     apiKey,
     rpm: resolveRpm(env),
     batchSize: wholeNumber(env.LLM_BATCH_SIZE, 1, MAX_LLM_BATCH_SIZE) ?? DEFAULT_LLM_BATCH_SIZE,
-    concurrency: resolveConcurrency(env.LLM_CONCURRENCY),
+    concurrency: wholeNumber(env.LLM_CONCURRENCY, 1, MAX_LLM_CONCURRENCY) ?? DEFAULT_LLM_CONCURRENCY,
   };
 }
 

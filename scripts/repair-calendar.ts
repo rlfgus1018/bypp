@@ -1,12 +1,15 @@
 // Maintenance tool: checks (and, with --apply, restores) the link between review status and calendar events.
 //
-//   npm run repair:calendar              → dry run: report only, writes nothing
-//   npm run repair:calendar -- --apply   → create missing events, delete stale ones
+//   npm run repair:calendar              → dry run: report only, repairs nothing
+//   npm run repair:calendar -- --apply   → back the database up, then create missing events and delete stale ones
+//
+// Opening the database may upgrade an older schema first (it is backed up before that, too).
 //
 // The app never needs this in normal use (status changes are transactional); it exists for a database
 // that was edited by hand or interrupted mid-write. It prints ids and counts only, never message content.
 import { existsSync, readFileSync } from "node:fs";
 import { reconcileCalendar } from "../src/lib/calendar/candidate-event-link";
+import { backupDb } from "../src/lib/db/backup";
 import { createDb } from "../src/lib/db/client";
 
 function loadDotEnv() {
@@ -28,11 +31,13 @@ if (!existsSync(path)) {
 }
 
 const db = createDb(path);
+const backup = apply ? backupDb(db, "before-repair") : null;
 const report = reconcileCalendar(db, { apply });
 db.close();
 
 console.log(`database            : ${path}`);
-console.log(`mode                : ${apply ? "APPLY" : "dry run (nothing written)"}`);
+console.log(`mode                : ${apply ? "APPLY" : "dry run (no repairs made)"}`);
+if (backup) console.log(`backup              : ${backup}`);
 console.log(`approved, no event  : ${report.missingEvents.length}${apply ? " → created" : ""}`);
 console.log(`event, not approved : ${report.staleEvents.length}${apply ? " → deleted" : ""}`);
 console.log(`candidate deleted   : ${report.orphanedEvents.length} (reported only; these events are kept)`);

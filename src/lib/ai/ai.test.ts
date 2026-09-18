@@ -4,7 +4,7 @@ import { parseKakaoExport } from "@/lib/kakao-export/parser";
 import { LlmExtractionOutputSchema } from "@/lib/schedule/schemas";
 import { classifyFailure, describeFailure, parseRateLimit } from "./gemini-client";
 import { PacedLlmClient } from "./paced-llm-client";
-import { createScheduleExtractor, describeLlm, resolveLlmConfig } from "@/lib/schedule/factory";
+import { createScheduleExtractor, describeLlm, llmConfigWarnings, resolveLlmConfig } from "@/lib/schedule/factory";
 import { z } from "zod";
 import { BudgetedLlmClient } from "./budgeted-llm-client";
 import { isLlmPauseError, LlmBudgetExceededError, LlmInvalidOutputError, LlmRateLimitError, LlmUnavailableError, MeasuredLlmClient } from "./llm-client";
@@ -196,7 +196,8 @@ describe("createScheduleExtractor / resolveLlmConfig", () => {
     expect(config({ LLM_BATCH_SIZE: "5", LLM_CONCURRENCY: "4" })).toMatchObject({ batchSize: 5, concurrency: 4 });
     expect(config({ LLM_BATCH_SIZE: "0", LLM_RPM: "-3" })).toMatchObject({ batchSize: 1, concurrency: 1, rpm: 14 });
     for (const concurrency of ["0", "17", "-1", "1.5", "nope"]) {
-      expect(() => config({ LLM_CONCURRENCY: concurrency })).toThrow("LLM_CONCURRENCY must be a whole number from 1 to 16");
+      expect(config({ LLM_CONCURRENCY: concurrency }).concurrency).toBe(1); // falls back to the default…
+      expect(llmConfigWarnings({ LLM_CONCURRENCY: concurrency })).toEqual([expect.stringContaining("LLM_CONCURRENCY")]); // …and says so
     }
     expect(describeLlm(config({ LLM_BATCH_SIZE: "5" }))).toBe("LLM: gemini/gemini-3.8-flash (5 msgs/request, ≤14 req/min)");
     expect(resolveLlmConfig({ GEMINI_API_KEY: KEY })).toBeNull(); // a stray key is not consent
