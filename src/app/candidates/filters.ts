@@ -86,7 +86,8 @@ export function toCandidateFilter(values: FilterValues, tab: TabKey, scope: Sour
 export function searchFields(values: FilterValues): Record<string, string> {
   const fields: Record<string, string> = {};
   const { action, category, basis, from, to, sort } = values;
-  for (const [key, value] of Object.entries({ action, category, basis, from, to, sort, undated: values.undated ? "1" : "" })) if (value) fields[key] = String(value);
+  for (const [key, value] of Object.entries({ action, category, basis, from, to, sort, undated: values.undated ? "1" : "" }))
+    if (value) fields[key] = String(value);
   return fields;
 }
 

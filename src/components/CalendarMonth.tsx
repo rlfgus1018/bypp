@@ -67,7 +67,12 @@ export function CalendarMonth({
             진행 중인 기간
           </span>
           {placed.longEvents.map((event) => (
-            <Link key={event.id} href={hrefFor({ event: event.id })} className={`rounded-[3px] px-2 py-0.5 font-medium ${chipStyle(event)}`} title={formatEventWhen(event)}>
+            <Link
+              key={event.id}
+              href={hrefFor({ event: event.id })}
+              className={`rounded-[3px] px-2 py-0.5 font-medium ${chipStyle(event)}`}
+              title={formatEventWhen(event)}
+            >
               {event.title} · <span className="font-display font-normal">{shortRange(event)}</span>
             </Link>
           ))}
@@ -121,12 +126,20 @@ export function CalendarMonth({
                         </span>
                       )}
                       {syncMarks.get(chip.event.id) === "created" && (
-                        <span className="mr-0.5 font-display font-semibold text-emerald-700" title="Google 캘린더에 생성됨" aria-label="Google 캘린더에 생성됨">
+                        <span
+                          className="mr-0.5 font-display font-semibold text-emerald-700"
+                          title="Google 캘린더에 생성됨"
+                          aria-label="Google 캘린더에 생성됨"
+                        >
                           G
                         </span>
                       )}
                       {syncMarks.get(chip.event.id) === "failed" && (
-                        <span className="mr-0.5 font-display font-semibold text-red-700" title="Google 생성 실패 — 일정을 열어 다시 시도" aria-label="Google 생성 실패">
+                        <span
+                          className="mr-0.5 font-display font-semibold text-red-700"
+                          title="Google 생성 실패 — 일정을 열어 다시 시도"
+                          aria-label="Google 생성 실패"
+                        >
                           G!
                         </span>
                       )}

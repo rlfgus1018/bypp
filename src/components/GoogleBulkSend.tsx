@@ -111,12 +111,12 @@ export function GoogleBulkSend({
     const queue = selected.map((item) => item.id).filter((id) => !settled.has(id) || settled.get(id)!.status === "failed");
 
     for (let start = 0; start < queue.length; start += CHUNK) {
-      if (stopRequested.current) return finish("stopped", "일시정지했습니다. 이미 만든 일정은 그대로이고, 나머지는 보내지 않았습니다.");
+      if (stopRequested.current) return finish("stopped", "일시정지했습니다.");
       let response;
       try {
         response = await sendEventsToGoogle(queue.slice(start, start + CHUNK), scope);
       } catch {
-        return finish("stopped", "서버에 연결하지 못했습니다. 이미 만든 일정은 그대로입니다. 다시 시도하면 중복 없이 이어집니다.");
+        return finish("stopped", "서버에 연결하지 못했습니다. 다시 시도하면 이어서 보냅니다.");
       }
       settled = new Map(settled);
       for (const result of response.results) settled.set(result.id, result);
@@ -124,12 +124,14 @@ export function GoogleBulkSend({
       if (response.results.some((result) => result.status === "created" || result.status === "existing")) fruitlessWaits.current = 0;
 
       if (response.stopped === "needs-reconnect" || response.stopped === "not-connected") {
-        return finish("stopped", "Google 연결이 끊겼습니다. 캘린더 화면에서 다시 연결한 뒤 이어서 보내 주세요. 남은 일정은 보내지 않았습니다.");
+        return finish("stopped", "Google 연결이 끊겼습니다. 다시 연결한 뒤 이어서 보내 주세요.");
       }
-      if (response.stopped === "invalid-request") return finish("stopped", "요청이 올바르지 않아 보내지 않았습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.");
+      if (response.stopped === "invalid-request")
+        return finish("stopped", "요청이 올바르지 않아 보내지 않았습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.");
       if (response.stopped === "rate-limited") {
         fruitlessWaits.current += 1;
-        if (fruitlessWaits.current >= MAX_FRUITLESS_WAITS) return finish("stopped", "Google 요청 한도가 계속 걸려 멈췄습니다. 잠시 후 다시 시도해 주세요.");
+        if (fruitlessWaits.current >= MAX_FRUITLESS_WAITS)
+          return finish("stopped", "Google 요청 한도가 계속 걸려 멈췄습니다. 잠시 후 다시 시도해 주세요.");
         setPhase("waiting");
         setNow(clock());
         setResumeAt(clock() + RATE_LIMIT_WAIT_MS);
@@ -165,13 +167,24 @@ export function GoogleBulkSend({
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-semibold">보낼 수 있는 일정 {items.length.toLocaleString()}건</h2>
         <span className="text-slate-600">
-          보냄 <strong className="tabular-nums">{selected.length.toLocaleString()}</strong> · 제외 <span className="tabular-nums">{excluded.size.toLocaleString()}</span>
+          보냄 <strong className="tabular-nums">{selected.length.toLocaleString()}</strong> · 제외{" "}
+          <span className="tabular-nums">{excluded.size.toLocaleString()}</span>
         </span>
         <span className="ml-auto flex gap-2">
-          <button type="button" disabled={busy} onClick={() => setExcluded(new Set())} className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setExcluded(new Set())}
+            className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+          >
             전체 선택
           </button>
-          <button type="button" disabled={busy} onClick={() => setExcluded(new Set(items.map((item) => item.id)))} className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setExcluded(new Set(items.map((item) => item.id)))}
+            className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+          >
             전체 해제
           </button>
         </span>
@@ -198,16 +211,22 @@ export function GoogleBulkSend({
                       <label className="flex min-w-0 flex-1 items-baseline gap-2">
                         <input type="checkbox" checked={!out} disabled={busy} onChange={(event) => toggle([item.id], event.target.checked)} />
                         <span className="min-w-0 break-words">
-                          <span className="font-medium">{item.title}</span> <span className="text-xs text-slate-500">{item.when}{item.location ? ` · ${item.location}` : ""}</span>
+                          <span className="font-medium">{item.title}</span>{" "}
+                          <span className="text-xs text-slate-500">
+                            {item.when}
+                            {item.location ? ` · ${item.location}` : ""}
+                          </span>
                         </span>
                       </label>
-                      {item.sameSlot > 0 && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">같은 시각 일정 {item.sameSlot}건 더</span>}
+                      {item.sameSlot > 0 && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">같은 시각 일정 {item.sameSlot}건 더</span>
+                      )}
                       {item.defaultEnd && (
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600" title={defaultEndText}>
                           종료 미입력
                         </span>
                       )}
-                      {item.retry && !result && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">재시도 (먼저 확인 후 전송)</span>}
+                      {item.retry && !result && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">재시도</span>}
                       {result && (
                         <span className={`text-xs ${RESULT_STYLE[result.status]}`} title={result.message}>
                           {RESULT_LABEL[result.status]}
@@ -225,27 +244,28 @@ export function GoogleBulkSend({
 
       {attempted > 0 && (
         <p className="mt-3 rounded bg-slate-50 p-2 tabular-nums" aria-live="polite">
-          진행 {attempted.toLocaleString()} / {Math.max(attempted, selected.length).toLocaleString()} — 생성 {counted.created} · 이미 있음 {counted.existing} · 건너뜀 {counted.skipped} · 실패 {counted.failed}
+          진행 {attempted.toLocaleString()} / {Math.max(attempted, selected.length).toLocaleString()} — 생성 {counted.created} · 이미 있음{" "}
+          {counted.existing} · 건너뜀 {counted.skipped} · 실패 {counted.failed}
         </p>
       )}
       {phase === "waiting" && resumeAt && (
         <p className="mt-2 rounded bg-sky-50 p-2 text-sky-900" aria-live="polite">
-          Google 요청 한도에 걸렸습니다. {Math.max(0, Math.ceil((resumeAt - now) / 1000))}초 뒤 자동으로 이어서 보냅니다. 이 창을 열어 두세요.
+          Google 요청 한도에 걸렸습니다. {Math.max(0, Math.ceil((resumeAt - now) / 1000))}초 뒤 자동으로 이어 갑니다.
         </p>
       )}
       {notice && <p className="mt-2 rounded bg-amber-50 p-2 text-amber-900">{notice}</p>}
-      {phase === "done" && <p className="mt-2 rounded bg-emerald-50 p-2 text-emerald-900">선택한 일정의 전송을 마쳤습니다. 실패한 일정이 있다면 사유를 확인한 뒤 다시 보낼 수 있습니다.</p>}
+      {phase === "done" && <p className="mt-2 rounded bg-emerald-50 p-2 text-emerald-900">전송을 마쳤습니다.</p>}
 
       {phase === "confirm" && (
         <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-amber-900">
           <p>
-            <strong>{accountEmail ?? "연결된 Google 계정"}</strong>의 기본 캘린더에 일정 <strong className="tabular-nums">{selected.length.toLocaleString()}건</strong>을 만듭니다
-            {excluded.size > 0 ? ` (제외한 ${excluded.size.toLocaleString()}건은 보내지 않습니다)` : ""}. 실제 Google 캘린더에 생성되며, BYPP에서는 되돌릴(삭제할) 수 없습니다. 이후 여기서
-            수정·제거해도 Google에는 반영되지 않습니다.
+            <strong>{accountEmail ?? "연결된 Google 계정"}</strong>의 기본 캘린더에 일정{" "}
+            <strong className="tabular-nums">{selected.length.toLocaleString()}건</strong>을 만듭니다. 여기서는 되돌릴 수 없습니다.
           </p>
           {selectedDefaultEnd > 0 && (
             <p className="mt-1 text-xs text-slate-600">
-              그중 <strong className="tabular-nums">{selectedDefaultEnd.toLocaleString()}건</strong>은 종료 시각이 없어 Google에 시작 후 {defaultEndMinutes}분짜리 일정으로 생성됩니다. BYPP의 일정에는 종료 시각을 채우지 않습니다.
+              그중 <strong className="tabular-nums">{selectedDefaultEnd.toLocaleString()}건</strong>은 종료 시각이 없어 {defaultEndMinutes}분 일정으로
+              생성됩니다.
             </p>
           )}
           <div className="mt-2 flex gap-2">
@@ -262,11 +282,16 @@ export function GoogleBulkSend({
       <div className="mt-3 flex flex-wrap gap-2">
         {(phase === "select" || phase === "stopped" || phase === "done") && remaining > 0 && (
           <button type="button" onClick={() => setPhase("confirm")} className="rounded bg-slate-900 px-3 py-1.5 font-medium text-white">
-            {attempted > 0 ? `남은 ${remaining.toLocaleString()}건 보내기` : `선택한 ${selected.length.toLocaleString()}건을 Google로 보내기`}
+            {attempted > 0 ? `남은 ${remaining.toLocaleString()}건 보내기` : `${selected.length.toLocaleString()}건 Google로 보내기`}
           </button>
         )}
         {busy && (
-          <button type="button" onClick={stop} disabled={stopping && phase === "running"} className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-50">
+          <button
+            type="button"
+            onClick={stop}
+            disabled={stopping && phase === "running"}
+            className="rounded border border-slate-300 px-3 py-1.5 disabled:opacity-50"
+          >
             {phase === "waiting" ? "자동 재개 취소" : stopping ? "현재 묶음이 끝나면 멈춥니다…" : "일시정지"}
           </button>
         )}

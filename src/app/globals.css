@@ -54,7 +54,8 @@ body {
 
 /* A faint grid over navy gradients. */
 .hud-grid {
-  background-image: linear-gradient(rgb(255 255 255 / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.06) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 

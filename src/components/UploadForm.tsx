@@ -161,20 +161,23 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
             dragging ? (locked ? "border-slate-300 bg-slate-100" : "border-2 border-ark-500 bg-sky-50") : "border-[#94c4e8] bg-[#f8fcff]"
           }`}
         >
-          <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border border-ark-500 font-display text-[10px] font-semibold text-ark-700" aria-hidden>
+          <div
+            className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border border-ark-500 font-display text-[10px] font-semibold text-ark-700"
+            aria-hidden
+          >
             {extension}
           </div>
           <div className="min-w-0 flex-1">
             {dragging ? (
               <p className="text-[13.5px] font-medium text-ark-700" aria-live="polite">
-                {locked ? "지금은 파일을 받을 수 없습니다 (처리 중)" : "여기에 놓으면 바로 분석합니다 (저장·외부 전송 없음)"}
+                {locked ? "처리 중에는 받을 수 없습니다" : "여기에 놓으세요"}
               </p>
             ) : file ? (
               <>
                 <p className="break-words text-[13.5px] font-medium">{file.name}</p>
                 <p className="text-xs text-ink-500">
                   {previewing
-                    ? "파일 분석 중… (저장·외부 전송 없음)"
+                    ? "파일 분석 중…"
                     : preview
                       ? `메시지 ${preview.totalMessages.toLocaleString()}건 · ${dotDate(preview.firstSentAt)} ~ ${dotDate(preview.lastSentAt)}`
                       : ""}
@@ -182,11 +185,10 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
               </>
             ) : (
               <>
-                <p className="text-[13.5px] font-medium">KakaoTalk 대화 내보내기 파일 (.txt / .eml)을 끌어다 놓거나 선택하세요</p>
+                <p className="text-[13.5px] font-medium">대화 파일(.txt / .eml)을 끌어다 놓거나 선택하세요</p>
                 <p className="text-xs text-ink-500">
-                  파일을 고르면 먼저 기간별 건수만 분석합니다(저장·외부 전송 없음).{" "}
                   <Link href="/#export" className="text-ark-700 underline-offset-2 hover:underline">
-                    카카오톡에서 내보내는 방법 →
+                    내보내는 방법 →
                   </Link>
                 </p>
               </>
@@ -211,16 +213,17 @@ export function UploadForm({ initialOverall, llmEnabled, llmPlan }: { initialOve
           </label>
         </div>
 
-        {preview && <PeriodPicker preview={preview} value={period} onChange={setPeriod} llmEnabled={llmEnabled} llmPlan={llmPlan} disabled={busy !== null} />}
+        {preview && (
+          <PeriodPicker preview={preview} value={period} onChange={setPeriod} llmEnabled={llmEnabled} llmPlan={llmPlan} disabled={busy !== null} />
+        )}
 
         <div className="flex flex-wrap items-center justify-end gap-3">
-          {!file && <span className="text-xs text-ink-500">확장자가 아니라 내용으로 형식을 판별하며, 같은 파일을 다시 올려도 새 메시지만 처리됩니다.</span>}
           <button
             type="submit"
             disabled={busy !== null || previewing || !file}
             className="rounded bg-ark-700 px-[18px] py-2.5 text-[13.5px] font-semibold text-white shadow-[0_3px_0_var(--color-ark-900)] hover:bg-ark-500 disabled:opacity-50 disabled:shadow-none"
           >
-            {busy === "upload" ? "업로드 중…" : previewing ? "파일 분석 중…" : "선택한 기간으로 가져오기"}
+            {busy === "upload" ? "업로드 중…" : previewing ? "파일 분석 중…" : "가져오기"}
           </button>
         </div>
       </form>

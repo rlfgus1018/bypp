@@ -114,11 +114,6 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[12.5px] text-ink-600">
-        승인한 일정이 자동으로 들어옵니다. Google 캘린더에는 자동으로 아무것도 보내지 않으며, 일정을 열어 직접 누르거나 &ldquo;Google로 한꺼번에
-        보내기&rdquo;에서 확인한 일정만 한 번 생성됩니다.
-      </p>
-
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[13px]">
         <nav className="flex flex-wrap items-center gap-1.5" aria-label="캘린더 보기">
           <h1 className="sr-only">캘린더</h1>
@@ -144,13 +139,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <CalendarSourceFilter chips={view.sourceChips} selected={context.src} hrefFor={sourceHref} />
       </div>
       {onCalendar && partnerships.active.length > 0 && (
-        <p className="-mt-1 text-xs text-ink-500">
-          진행 중인 제휴 {partnerships.active.length.toLocaleString()}건은 달력에 표시하지 않고 제휴 탭에 모았습니다.
-        </p>
+        <p className="-mt-1 text-xs text-ink-500">진행 중인 제휴 {partnerships.active.length.toLocaleString()}건은 제휴 탭에 있습니다.</p>
       )}
       {view.sourceFilter === "invalid" && (
         <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-          알 수 없는 출처가 선택되어 있습니다. 주소가 잘못되었거나 그 채팅방의 일정이 더 이상 없습니다. 아무것도 표시하지 않습니다.{" "}
+          알 수 없는 출처입니다. 아무것도 표시하지 않습니다.{" "}
           <Link href={sourceHref([])} className="underline">
             전체 보기
           </Link>
@@ -285,7 +278,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
               <EventList
                 title="날짜 미확정"
                 count={view.undated.length}
-                note="일정을 열어 '수정'에서 날짜를 넣으면 달력에 표시됩니다."
+                note="수정에서 날짜를 넣으면 달력에 표시됩니다."
                 events={view.undated}
                 empty=""
                 syncMarks={syncMarks}
@@ -295,7 +288,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             )}
             {onCalendar && !day && !view.selected && !newEvent && (
               <p className="rounded-lg border border-dashed border-slate-300 p-4 text-xs leading-relaxed text-ink-500">
-                날짜를 누르면 그날의 일정이, 일정을 누르면 상세 정보와 Google 전송 상태가 여기에 표시됩니다.
+                날짜나 일정을 누르면 여기에 표시됩니다.
               </p>
             )}
           </aside>
@@ -339,10 +332,10 @@ function ImportantList({
         {keywordCount === 0 ? (
           <>
             <p className="font-medium">아직 중요 일정이 없습니다.</p>
-            <p className="mt-1">중요 단어를 등록하면 관련 일정을 여기에서 모아볼 수 있습니다.</p>
+            <p className="mt-1">중요 단어를 등록해 보세요.</p>
           </>
         ) : (
-          <p>캘린더에 중요 일정이 없습니다. 제목에 중요 단어가 들어간 일정이나, 직접 &ldquo;중요로&rdquo; 지정한 일정이 여기에 모입니다.</p>
+          <p>중요 일정이 없습니다.</p>
         )}
         <Link href="/settings" className="mt-3 inline-block rounded bg-slate-900 px-3 py-1.5 text-white">
           중요 단어 설정하기
@@ -388,12 +381,6 @@ function ImportantList({
   );
   return (
     <div className="space-y-3 text-sm">
-      <p className="text-xs text-ink-500">
-        제목에 중요 단어가 들어간 일정과 직접 &ldquo;중요로&rdquo; 지정한 일정입니다(달력에서는 ★로 표시).{" "}
-        <Link href="/settings" className="underline">
-          중요 단어 설정
-        </Link>
-      </p>
       <section className="rounded-lg border border-slate-200 bg-white" aria-label="다가오는 중요 일정">
         <h2 className="border-b border-slate-100 px-3 py-2 font-semibold">{heading("다가오는 일정", groups.upcoming.length)}</h2>
         {groups.upcoming.length === 0 ? <p className="px-3 py-2 text-ink-500">다가오는 중요 일정이 없습니다.</p> : rows(groups.upcoming)}
@@ -446,18 +433,11 @@ function PartnershipList({
     );
   }
   if (total === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">
-        캘린더에 제휴 일정이 없습니다. 제목에 &ldquo;제휴&rdquo;가 들어가고 일주일보다 긴 일정이 이 탭에 모입니다.
-      </p>
-    );
+    return <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-ink-500">제휴 일정이 없습니다.</p>;
   }
   return (
     <div className="space-y-3 text-sm">
-      <p className="text-xs text-ink-500">
-        제목에 &ldquo;제휴&rdquo;가 들어가고 일주일보다 긴 일정은 달력과 날짜별 목록에 표시하지 않고 여기에 모읍니다. 하루짜리 제휴 행사나 신청 마감은
-        달력에 그대로 나옵니다.
-      </p>
+      <p className="text-xs text-ink-500">제목에 &ldquo;제휴&rdquo;가 들어간 일주일 넘는 일정을 모았습니다.</p>
       {PHASES.map(({ key, title, empty }) => {
         const rows = groups[key];
         if (rows.length === 0 && !empty) return null;

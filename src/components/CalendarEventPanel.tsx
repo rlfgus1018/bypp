@@ -52,7 +52,11 @@ export function CalendarEventPanel({
         <ImportanceBadge reason={importance} />
         {importance.type === "override-not-important" && <span className="text-ink-500">{reasonText(importance)}</span>}
         {event.editedAt && <span className="rounded-[3px] bg-slate-100 px-2 py-0.5 text-slate-700">캘린더에서 수정됨</span>}
-        <Link href={closeHref} className="ml-auto rounded border border-slate-300 px-2 py-0.5 text-slate-600 hover:bg-slate-50" aria-label="일정 상세 닫기">
+        <Link
+          href={closeHref}
+          className="ml-auto rounded border border-slate-300 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+          aria-label="일정 상세 닫기"
+        >
           닫기
         </Link>
       </div>
@@ -68,11 +72,10 @@ export function CalendarEventPanel({
 
       <div>
         <ImportanceButtons id={event.id} reason={importance} action={setEventImportance} extraFields={returnFields} />
-        {event.candidateId && <p className="mt-1 text-[11.5px] text-ink-500">중요 표시는 원본 일정 후보에도 함께 적용됩니다. Google에 이미 보낸 일정은 바뀌지 않습니다.</p>}
       </div>
       {notice && (
         <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">
-          이 항목은 &ldquo;{notice}&rdquo;입니다. 어떤 기존 일정에 대한 공지인지는 자동으로 연결하지 않으므로, 해당 일정을 직접 수정하거나 제거해 주세요.
+          &ldquo;{notice}&rdquo;입니다. 해당하는 기존 일정은 직접 수정하거나 제거해 주세요.
         </p>
       )}
 
@@ -82,7 +85,7 @@ export function CalendarEventPanel({
 
       {sameSlot.length > 0 && (
         <div className="rounded bg-slate-50 p-2 text-xs text-slate-700">
-          같은 시각·분류의 일정이 {sameSlot.length}건 더 있습니다. 반복 공지일 수 있습니다(자동으로 합치지 않습니다).
+          같은 시각의 일정이 {sameSlot.length}건 더 있습니다.
           <ul className="mt-1 space-y-0.5">
             {sameSlot.map((other) => (
               <li key={other.id}>
@@ -112,12 +115,19 @@ export function CalendarEventPanel({
 
         {event.source && sentAt ? (
           <details className={disclosure}>
-            <summary className={`${summaryButton} border-slate-300 text-slate-700 hover:bg-slate-50 group-open:bg-slate-100`}>원본 메시지 보기</summary>
+            <summary className={`${summaryButton} border-slate-300 text-slate-700 hover:bg-slate-50 group-open:bg-slate-100`}>
+              원본 메시지 보기
+            </summary>
             <div className="mt-2 space-y-2">
               <p className="text-xs text-ink-500">
-                {event.source.sender} · <span className="font-display">{formatDay(sentAt.date)} {formatClock(event.source.sentAt)}</span>
+                {event.source.sender} ·{" "}
+                <span className="font-display">
+                  {formatDay(sentAt.date)} {formatClock(event.source.sentAt)}
+                </span>
               </p>
-              {event.source.excerpt && <p className="border-l-2 border-yellow-400 bg-yellow-50 px-2.5 py-2 text-xs text-ink-600">추출 근거: {event.source.excerpt}</p>}
+              {event.source.excerpt && (
+                <p className="border-l-2 border-yellow-400 bg-yellow-50 px-2.5 py-2 text-xs text-ink-600">추출 근거: {event.source.excerpt}</p>
+              )}
               <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs leading-relaxed">{event.source.text}</pre>
               <Link href="/candidates?status=APPROVED" className="inline-block text-xs text-ark-700 hover:underline">
                 승인된 후보 목록에서 보기
@@ -130,17 +140,10 @@ export function CalendarEventPanel({
           <summary className={`${summaryButton} border-red-300 text-red-700 hover:bg-red-50 group-open:bg-red-50`}>캘린더에서 제거…</summary>
           <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-900">
             <p>
-              {event.candidateId
-                ? "이 일정을 캘린더에서 지우고, 원본 후보를 “무시” 상태로 바꿉니다. 일정 후보 화면에서 되돌릴 수 있습니다."
-                : "이 일정을 캘린더에서 지웁니다."}
+              {event.candidateId ? "캘린더에서 지우고 후보를 “무시”로 바꿉니다. 일정 후보에서 되돌릴 수 있습니다." : "이 일정을 캘린더에서 지웁니다."}
             </p>
-            {event.candidateId && <p className="mt-1">다시 승인하면 추출된 후보 원본 값으로 일정이 새로 생성되며, 캘린더에서 직접 수정했던 내용은 복원되지 않습니다.</p>}
-            {sync.state === "created" && (
-              <p className="mt-1 font-medium">
-                Google 캘린더에 만든 일정은 지워지지 않습니다. 필요하면 Google 캘린더에서 직접 삭제해 주세요. 제거 후 다시 승인하면 새 일정으로 취급되어, 다시
-                전송하면 Google에 일정이 하나 더 생깁니다.
-              </p>
-            )}
+            {event.candidateId && event.editedAt && <p className="mt-1">캘린더에서 수정한 내용은 복원되지 않습니다.</p>}
+            {sync.state === "created" && <p className="mt-1 font-medium">Google 캘린더의 일정은 지워지지 않습니다.</p>}
             <form action={removeCalendarEvent} className="mt-2">
               <input type="hidden" name="id" value={event.id} />
               <HiddenFields fields={returnFields} />
@@ -153,7 +156,7 @@ export function CalendarEventPanel({
       </div>
 
       {!event.source && (
-        <p className="text-xs text-ink-500">{event.origin === "MANUAL" ? "캘린더에서 직접 추가한 일정입니다." : "원본 후보가 없습니다(후보가 삭제된 일정)."}</p>
+        <p className="text-xs text-ink-500">{event.origin === "MANUAL" ? "캘린더에서 직접 추가한 일정입니다." : "원본 후보가 없는 일정입니다."}</p>
       )}
     </section>
   );

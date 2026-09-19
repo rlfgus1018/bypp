@@ -82,7 +82,9 @@ export function CandidateFilters({ status, values, active }: { status: TabKey; v
         </label>
         <label className="flex items-center gap-1 pb-1.5">
           <input type="checkbox" name="undated" value="1" defaultChecked={values.undated} />
-          <span className="text-[12.5px] text-slate-700">날짜 미확정 포함 <span className="text-ink-500">(일정 날짜 기준일 때)</span></span>
+          <span className="text-[12.5px] text-slate-700">
+            날짜 미확정 포함 <span className="text-ink-500">(일정 날짜 기준일 때)</span>
+          </span>
         </label>
         <span className="ml-auto flex gap-2">
           <button type="submit" className="rounded bg-slate-900 px-4 py-1.5 text-[12.5px] font-medium text-white hover:bg-slate-700">

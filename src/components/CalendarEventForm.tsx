@@ -73,10 +73,7 @@ export function CalendarEventForm({
           <input type="time" name="endTime" defaultValue={initial.endTime} disabled={allDay} className={field} />
         </label>
       </div>
-      <p className="text-xs text-ink-500">
-        시작 날짜를 비우면 &ldquo;날짜 미확정&rdquo;이 됩니다. 끝을 모르면 끝 날짜·끝 시간을 비워 두세요.
-        {id ? " 여기서 고친 내용은 캘린더 일정에만 반영되고 추출된 후보는 그대로 남습니다." : " 직접 추가한 일정은 출처 필터의 “직접 추가”로 모아 볼 수 있습니다."}
-      </p>
+      <p className="text-xs text-ink-500">시작 날짜를 비우면 &ldquo;날짜 미확정&rdquo;, 끝을 모르면 비워 두세요.</p>
       {state.errors.length > 0 && (
         <ul className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700" role="alert">
           {state.errors.map((error) => (

@@ -48,7 +48,7 @@ export function KeywordForm({ minLength, maxLength }: { minLength: number; maxLe
     >
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-[11.5px] text-ink-500">단어 추가 (제목에서만 찾습니다 · 공백과 대소문자는 무시)</span>
+          <span className="text-[11.5px] text-ink-500">단어 추가</span>
           <input
             name="keyword"
             value={word}
@@ -59,17 +59,21 @@ export function KeywordForm({ minLength, maxLength }: { minLength: number; maxLe
             autoComplete="off"
           />
         </label>
-        <button type="submit" disabled={pending || word.trim() === ""} className="rounded bg-slate-900 px-[18px] py-2 text-[13px] font-medium text-white hover:bg-slate-700 disabled:opacity-40">
+        <button
+          type="submit"
+          disabled={pending || word.trim() === ""}
+          className="rounded bg-slate-900 px-[18px] py-2 text-[13px] font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+        >
           {pending ? "추가 중…" : "추가"}
         </button>
       </div>
       <p className={`min-h-5 rounded px-3 text-[12.5px] ${shown ? "bg-sky-50 py-2.5 text-sky-950" : ""}`} aria-live="polite">
         {shown && (
           <>
-            제목 일치 미리보기 · 후보 <strong className="font-display">{shown.candidates.toLocaleString()}</strong>건 · 캘린더{" "}
+            제목 일치 · 후보 <strong className="font-display">{shown.candidates.toLocaleString()}</strong>건 · 캘린더{" "}
             <strong className="font-display">{shown.events.toLocaleString()}</strong>건
             {excluded > 0 ? ` (이 중 직접 제외 ${excluded.toLocaleString()}건)` : ""}
-            {shown.candidates >= BROAD_MATCH && <span className="ml-1 text-amber-700">— 흔한 단어라 너무 많이 걸릴 수 있습니다.</span>}
+            {shown.candidates >= BROAD_MATCH && <span className="ml-1 text-amber-700">— 너무 많이 걸릴 수 있습니다</span>}
           </>
         )}
       </p>
@@ -78,7 +82,7 @@ export function KeywordForm({ minLength, maxLength }: { minLength: number; maxLe
           {state.error}
         </p>
       )}
-      {state.added && !state.error && <p className="text-xs text-emerald-700">&ldquo;{state.added}&rdquo;를 추가했습니다. 기존 후보와 일정에도 바로 적용됩니다.</p>}
+      {state.added && !state.error && <p className="text-xs text-emerald-700">&ldquo;{state.added}&rdquo;를 추가했습니다.</p>}
     </form>
   );
 }

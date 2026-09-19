@@ -13,8 +13,8 @@ export default function TermsPage() {
     <LegalPage eyebrow="TERMS OF SERVICE" title="이용약관" updated="2026-09-19">
       <LegalSection title="1. 서비스 내용">
         <p>
-          ARK:U는 카카오톡 대화 내보내기 파일에서 일정 후보를 추출해 검토하고, 승인한 일정을 서비스 안의 캘린더에서 관리하며, 사용자가 선택한 일정을 Google Calendar에 생성할
-          수 있게 돕는 개인용 도구입니다.
+          ARK:U는 카카오톡 대화 내보내기 파일에서 일정 후보를 추출해 검토하고, 승인한 일정을 서비스 안의 캘린더에서 관리하며, 사용자가 선택한 일정을
+          Google Calendar에 생성할 수 있게 돕는 개인용 도구입니다.
         </p>
       </LegalSection>
 
@@ -34,16 +34,21 @@ export default function TermsPage() {
             <strong>자동 전송은 없습니다.</strong> 업로드·추출·승인·Google 연결만으로는 Google Calendar에 아무것도 생성되지 않습니다.
           </li>
           <li>
-            일정은 사용자가 직접 전송을 요청하고 <strong>내용을 확인한 경우에만</strong> 생성됩니다. 전송 전에 제목·일시·장소가 맞는지 확인할 책임은 사용자에게 있습니다.
+            일정은 사용자가 직접 전송을 요청하고 <strong>내용을 확인한 경우에만</strong> 생성됩니다. 전송 전에 제목·일시·장소가 맞는지 확인할 책임은
+            사용자에게 있습니다.
           </li>
-          <li>생성 이후 서비스에서 일정을 수정·삭제해도 Google Calendar에는 반영되지 않으며, Google에 생성된 일정은 Google Calendar에서 직접 관리해야 합니다.</li>
+          <li>
+            생성 이후 서비스에서 일정을 수정·삭제해도 Google Calendar에는 반영되지 않으며, Google에 생성된 일정은 Google Calendar에서 직접 관리해야
+            합니다.
+          </li>
         </ul>
       </LegalSection>
 
       <LegalSection title="4. 업로드하는 데이터">
         <ul>
           <li>
-            <strong>사용 권한이 있는 데이터만 업로드해 주세요.</strong> 대화 파일에는 다른 참여자의 메시지가 포함되므로, 업로드와 이용에 따른 책임은 사용자에게 있습니다.
+            <strong>사용 권한이 있는 데이터만 업로드해 주세요.</strong> 대화 파일에는 다른 참여자의 메시지가 포함되므로, 업로드와 이용에 따른 책임은
+            사용자에게 있습니다.
           </li>
           <li>민감한 개인정보가 담긴 대화는 올리지 않는 것을 권장합니다.</li>
           <li>
@@ -58,8 +63,8 @@ export default function TermsPage() {
 
       <LegalSection title="5. 개발 단계 및 변경">
         <p>
-          ARK:U는 <strong>개발/해커톤 단계</strong>의 서비스로 &ldquo;있는 그대로&rdquo; 제공됩니다. 기능이 예고 없이 변경·중단될 수 있고 저장된 데이터가 초기화될 수 있으며,
-          가용성과 정확성을 보증하지 않습니다. 이 약관도 기능 변경에 따라 수정될 수 있습니다.
+          ARK:U는 <strong>개발/해커톤 단계</strong>의 서비스로 &ldquo;있는 그대로&rdquo; 제공됩니다. 기능이 예고 없이 변경·중단될 수 있고 저장된
+          데이터가 초기화될 수 있으며, 가용성과 정확성을 보증하지 않습니다. 이 약관도 기능 변경에 따라 수정될 수 있습니다.
         </p>
       </LegalSection>
 

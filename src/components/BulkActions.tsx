@@ -8,21 +8,21 @@ type Target = "APPROVED" | "IGNORED" | "PENDING";
 type DuplicatePolicy = "add" | "ignore" | "skip";
 
 const DUPLICATE_OPTIONS: { value: DuplicatePolicy; label: string; detail: string }[] = [
-  { value: "ignore", label: "무시 처리", detail: "겹치는 후보는 승인하지 않고 '무시' 상태로 보냅니다. 캘린더에는 일정이 하나만 남습니다." },
-  { value: "add", label: "별도 일정으로 추가", detail: "겹치는 후보도 승인해서, 같은 시각에 일정이 여러 개 생깁니다." },
-  { value: "skip", label: "그대로 두기", detail: "겹치는 후보는 건드리지 않고 지금 상태로 남겨, 나중에 하나씩 검토합니다." },
+  { value: "ignore", label: "무시 처리", detail: "겹치는 후보는 무시하고, 일정은 하나만 남깁니다." },
+  { value: "add", label: "별도 일정으로 추가", detail: "겹쳐도 모두 승인합니다." },
+  { value: "skip", label: "그대로 두기", detail: "겹치는 후보는 남겨 두고 나중에 검토합니다." },
 ];
 
-const LABEL: Record<Target, string> = { APPROVED: "전체 승인", IGNORED: "전체 무시", PENDING: "전체 검토 대기로 되돌리기" };
+const LABEL: Record<Target, string> = { APPROVED: "전체 승인", IGNORED: "전체 무시", PENDING: "전체 되돌리기" };
 const BUTTON: Record<Target, string> = {
   APPROVED: "border border-emerald-600 bg-white text-emerald-800 hover:bg-emerald-50",
   IGNORED: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
   PENDING: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
 };
 const EFFECT: Record<Target, string> = {
-  APPROVED: "승인 대상입니다. 승인된 후보는 캘린더에 일정으로 추가됩니다.",
-  IGNORED: "모두 무시 상태가 되고, 캘린더에 있던 일정은 함께 빠집니다(캘린더에서 수정한 내용은 사라집니다). Google 캘린더에 이미 만든 일정은 지워지지 않습니다.",
-  PENDING: "모두 검토 대기로 돌아가고, 캘린더에 있던 일정은 함께 빠집니다(캘린더에서 수정한 내용은 사라집니다). Google 캘린더에 이미 만든 일정은 지워지지 않습니다.",
+  APPROVED: "승인되어 캘린더에 추가됩니다.",
+  IGNORED: "무시되고, 캘린더에 있던 일정은 빠집니다. Google에 만든 일정은 남습니다.",
+  PENDING: "검토 대기로 돌아가고, 캘린더에 있던 일정은 빠집니다. Google에 만든 일정은 남습니다.",
 };
 
 const INITIAL: BulkState = { error: null };
@@ -62,7 +62,11 @@ export function BulkActions({
   // confirmation takes a full line below it.
   return (
     <div className="contents">
-      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]" role="group" aria-label={`일괄 처리 — ${scopeLabel}의 ${count.toLocaleString()}건`}>
+      <div
+        className="flex flex-wrap items-center gap-1.5 text-[12.5px]"
+        role="group"
+        aria-label={`일괄 처리 — ${scopeLabel}의 ${count.toLocaleString()}건`}
+      >
         <span className="text-xs text-ink-500">
           {filtering ? "검색된 " : ""}
           <span className="font-display">{count.toLocaleString()}</span>건 전체
@@ -94,20 +98,15 @@ export function BulkActions({
           ))}
           <input type="hidden" name="expectedDuplicates" value={target === "APPROVED" ? duplicateCount : 0} />
           <p>
-            <span className="break-words font-medium">{scopeLabel}</span>의 <strong className="tabular-nums">{count.toLocaleString()}건</strong>이 {EFFECT[target]}
-            {count > 100 ? " 화면에는 100건만 보이지만, 조건에 맞는 전부가 대상입니다." : ""}
-            {!filtering ? " 검색 조건이 걸려 있지 않습니다 — 이 범위의 이 탭 전부가 대상입니다." : ""}
+            <span className="break-words font-medium">{scopeLabel}</span>의 <strong className="tabular-nums">{count.toLocaleString()}건</strong>이{" "}
+            {EFFECT[target]}
+            {count > 100 ? " 화면에 보이지 않는 후보도 포함됩니다." : ""}
           </p>
           {asksAboutDuplicates && (
             <fieldset className="mt-3 rounded border border-amber-400 bg-white p-3 text-slate-800">
               <legend className="px-1 font-medium">
-                이 중 <span className="tabular-nums">{duplicateCount.toLocaleString()}</span>건은 같은 시각·분류의 일정이 이미 캘린더에 있거나, 이 목록
-                안에서 서로 겹칩니다. 어떻게 할까요?
+                <span className="tabular-nums">{duplicateCount.toLocaleString()}</span>건은 같은 시각의 일정과 겹칩니다. 어떻게 할까요?
               </legend>
-              <p className="text-xs text-slate-500">
-                같은 행사의 반복 공지일 가능성이 높습니다. 이 목록 안에서 서로 겹치는 후보끼리는 가장 최근 메시지의 후보 하나만 새 일정으로 보고, 나머지를
-                겹치는 것으로 셉니다.
-              </p>
               <div className="mt-2 space-y-1.5">
                 {DUPLICATE_OPTIONS.map((option) => (
                   <label key={option.value} className="flex cursor-pointer items-start gap-2">
@@ -138,12 +137,17 @@ export function BulkActions({
               {pending
                 ? "처리 중…"
                 : asksAboutDuplicates && policy === null
-                  ? "겹치는 후보 처리 방법을 먼저 선택하세요"
+                  ? "겹치는 후보 처리 방법을 선택하세요"
                   : `${approving.toLocaleString()}건 ${LABEL[target]} 확인${
                       asksAboutDuplicates && policy === "ignore" ? ` · ${duplicateCount.toLocaleString()}건 무시` : ""
                     }${asksAboutDuplicates && policy === "skip" ? ` · ${duplicateCount.toLocaleString()}건 그대로` : ""}`}
             </button>
-            <button type="button" disabled={pending} onClick={() => setTarget(null)} className="rounded border border-slate-300 bg-white px-3 py-1.5 text-slate-700">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setTarget(null)}
+              className="rounded border border-slate-300 bg-white px-3 py-1.5 text-slate-700"
+            >
               취소
             </button>
           </div>

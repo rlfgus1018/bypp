@@ -31,9 +31,7 @@ export function GoogleSyncSection({ eventId, view, syncedAtText }: { eventId: st
 
       {view.state === "created" && (
         <p className="mt-1 text-[11.5px] text-ink-500">
-          {view.editedSince
-            ? "생성 이후 이 일정을 로컬에서 수정했습니다. 그 변경은 Google에 반영되지 않았습니다(이번 단계는 생성만 지원)."
-            : "Google 캘린더의 일정은 생성 당시 내용입니다. 이후 여기서 수정하거나 제거해도 Google 쪽은 바뀌지 않습니다."}
+          {view.editedSince ? "생성 후 수정한 내용은 Google에 반영되지 않았습니다." : "이후 수정·제거는 Google에 반영되지 않습니다."}
         </p>
       )}
       {view.problem && !pending && <p className="mt-1 text-xs text-red-700">{view.problem}</p>}

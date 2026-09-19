@@ -72,22 +72,16 @@ export default async function GoogleBulkSendPage({ searchParams }: { searchParam
         <Link href="/calendar" className="text-sm text-slate-600 underline">
           ← 캘린더로
         </Link>
-        <h1 className="mt-1 text-xl font-semibold">Google 캘린더로 한꺼번에 보내기</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          BYPP 캘린더의 일정 중 아직 보내지 않은 것을 골라 Google 기본 캘린더에 생성합니다. 보내고 싶지 않은 일정은 체크를 해제하세요. 생성만
-          하며(단방향), 이미 보낸 일정의 수정·삭제는 Google에 반영되지 않습니다.
-        </p>
+        <h1 className="mt-1 text-xl font-semibold">Google로 한꺼번에 보내기</h1>
+        <p className="mt-1 text-sm text-slate-500">보내지 않을 일정은 체크를 해제하세요. 생성만 하며, 이후 수정·삭제는 Google에 반영되지 않습니다.</p>
       </div>
 
       <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="보낼 범위">
         {scopeTab("important", "★ 중요만", importantPlan.sendable.length)}
         {scopeTab("all", "전체", allPlan.sendable.length)}
-        <span className="text-xs text-slate-500">
-          숫자는 지금 보낼 수 있는 일정 수입니다(이미 보낸 일정·보낼 수 없는 일정 제외).{" "}
-          <Link href="/settings" className="underline">
-            중요 단어 설정
-          </Link>
-        </span>
+        <Link href="/settings" className="text-xs text-slate-500 underline">
+          중요 단어 설정
+        </Link>
       </nav>
       {scope === null && (
         <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
@@ -95,12 +89,6 @@ export default async function GoogleBulkSendPage({ searchParams }: { searchParam
           <Link href={scopeHref("important")} className="underline">
             중요만 보기
           </Link>
-        </p>
-      )}
-      {scope === "important" && (
-        <p className="text-xs text-slate-500">
-          중요 일정만 보냅니다. 보내기 직전에 서버에서 중요 여부를 다시 확인하고, 그 사이 중요에서 빠진 일정은 보내지 않습니다. 중요에서 빠져도 이미
-          Google에 만든 일정은 지우지 않습니다.
         </p>
       )}
 
@@ -128,7 +116,7 @@ export default async function GoogleBulkSendPage({ searchParams }: { searchParam
             전체 기간
           </Link>
         )}
-        <span className="text-xs text-slate-500">비워 두면 전체 일정입니다. 기간을 정하면 날짜 미확정 일정은 제외됩니다.</span>
+        <span className="text-xs text-slate-500">비우면 전체</span>
         {badRange && <span className="text-xs text-red-700">시작 날짜가 끝 날짜보다 늦어 기간을 적용하지 않았습니다.</span>}
       </form>
 
@@ -170,9 +158,7 @@ export default async function GoogleBulkSendPage({ searchParams }: { searchParam
       {plan.blocked.length > 0 && (
         <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
           <h2 className="font-semibold">보낼 수 없는 일정 {plan.blocked.length.toLocaleString()}건</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            일정을 열어 고치면 보낼 수 있게 됩니다. (끝 시각만 없는 일정은 여기가 아니라 위 목록에서 보낼 수 있습니다.)
-          </p>
+          <p className="mt-1 text-xs text-slate-500">일정을 열어 고치면 보낼 수 있습니다.</p>
           <ul className="mt-2 divide-y divide-slate-100">
             {plan.blocked.map(({ event, reason }) => (
               <li key={event.id} className="flex flex-wrap items-baseline gap-x-2 py-1.5">

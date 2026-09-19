@@ -88,9 +88,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-0">
             <h1 className="text-[21px] font-semibold">일정 후보</h1>
-            <p className="mt-0.5 text-[12.5px] text-ink-600">
-              추출한 제목·날짜·장소를 원문과 함께 확인하고 승인하거나 무시합니다. 승인하면 이 앱의 캘린더에 추가됩니다.
-            </p>
+            <p className="mt-0.5 text-[12.5px] text-ink-600">승인한 후보는 캘린더에 추가됩니다.</p>
           </div>
           <div className="ml-auto">
             <ImportanceTabs
@@ -104,7 +102,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
 
         {scope.kind === "unknown" && (
           <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-            알 수 없는 채팅방입니다. 주소가 잘못되었거나 그 채팅방의 후보가 더 이상 없습니다. 아무것도 표시하거나 변경하지 않습니다.{" "}
+            알 수 없는 채팅방입니다. 아무것도 표시하거나 변경하지 않습니다.{" "}
             <Link href={hrefWith({})} className="underline">
               전체 채팅방 보기
             </Link>
@@ -137,25 +135,16 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
             />
           )}
         </div>
-        {(filtering || scope.kind === "group") && (
-          <p className="-mt-1 text-xs text-ink-500">
-            탭의 숫자는 {scope.kind === "group" ? "선택한 채팅방" : "전체 채팅방"}
-            {filtering ? " + 검색 조건" : ""} 기준입니다.
-          </p>
-        )}
 
         {params.blocked === "sync" && (
           <p className="rounded border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-900" role="status">
-            그 일정은 지금 Google로 전송되는 중이라 상태를 바꾸지 않았습니다. 잠시 후 다시 시도해 주세요.
+            Google로 전송 중인 일정이라 바꾸지 않았습니다. 잠시 후 다시 시도해 주세요.
           </p>
         )}
         {done && (
           <p className="rounded border border-emerald-200 bg-emerald-50 p-2.5 text-sm text-emerald-900" role="status">
-            {done.count.toLocaleString()}건을 &ldquo;{DONE_LABEL[done.target]}&rdquo; 상태로 바꿨습니다.
-            {done.target === "APPROVED" ? " 캘린더에 추가되었습니다." : " 그중 캘린더에 있던 일정은 함께 빠졌습니다."}
-            {dupMatch &&
-              ` 이미 캘린더에 같은 일정이 있던 ${Number(dupMatch[1]).toLocaleString()}건은 ${DUP_LABEL[dupMatch[2] as keyof typeof DUP_LABEL]}.`}{" "}
-            해당 탭에서 되돌릴 수 있습니다.
+            {done.count.toLocaleString()}건을 &ldquo;{DONE_LABEL[done.target]}&rdquo;(으)로 바꿨습니다.
+            {dupMatch && ` 겹치던 ${Number(dupMatch[1]).toLocaleString()}건은 ${DUP_LABEL[dupMatch[2] as keyof typeof DUP_LABEL]}.`}
           </p>
         )}
 
@@ -164,7 +153,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
             {noImportanceSetup && view.scopeCounts.important === 0 ? (
               <>
                 <p className="font-medium">아직 중요 일정이 없습니다.</p>
-                <p className="mt-1">중요 단어를 등록하면 관련 일정을 여기에서 모아볼 수 있습니다.</p>
+                <p className="mt-1">중요 단어를 등록해 보세요.</p>
               </>
             ) : (
               <p>{scope.kind === "group" ? "이 채팅방에서 " : ""}현재 조건에 맞는 중요 후보가 없습니다.</p>
@@ -205,9 +194,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
               ))}
               {shown.length < total && (
                 <p className="text-center text-xs text-ink-500">
-                  {values.sort === "schedule" ? "일정 날짜순" : "최근 메시지 기준"} {shown.length}건만 표시 중 (이 채팅방 전체{" "}
-                  {total.toLocaleString()}
-                  건). {scope.kind === "group" ? "검토를 진행하면 다음 후보가 나타납니다." : "‘이 채팅방만 보기’로 더 많이 볼 수 있습니다."}
+                  {shown.length} / {total.toLocaleString()}건 표시 중{scope.kind === "group" ? "" : " · ‘이 채팅방만 보기’로 더 볼 수 있습니다"}
                 </p>
               )}
             </section>

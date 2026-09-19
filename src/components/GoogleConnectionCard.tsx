@@ -11,7 +11,7 @@ const REASON_TEXT: Record<string, string> = {
 
 // Result codes the OAuth callback (and the remove action) may put in ?google=. Anything else is ignored.
 const FLASH: Record<string, { tone: "ok" | "warn" | "error"; text: string }> = {
-  connected: { tone: "ok", text: "Google 계정을 연결했습니다. 일정은 자동으로 전송되지 않습니다 — 보내려는 일정을 열어 직접 생성하세요." },
+  connected: { tone: "ok", text: "Google 계정을 연결했습니다. 일정은 직접 보낼 때만 생성됩니다." },
   denied: { tone: "warn", text: "Google 연결을 취소했습니다. 아무것도 바뀌지 않았습니다." },
   missing_code: { tone: "error", text: "Google에서 인증 코드를 받지 못했습니다. 다시 시도해 주세요." },
   bad_state: { tone: "error", text: "연결 요청을 확인할 수 없습니다(만료되었거나 이미 사용된 요청). 다시 시도해 주세요." },
@@ -110,10 +110,7 @@ export function GoogleConnectionCard({
         )}
       </div>
       {connection.state !== "connected" && (
-        <p className="mt-1 text-[11.5px] text-ink-500">
-          연결만으로는 아무것도 전송되지 않습니다. 일정을 열어 &ldquo;Google에 일정 생성&rdquo;을 누르거나 &ldquo;한꺼번에 보내기&rdquo;에서 고른
-          일정만, 한 번씩 만들어집니다(단방향 · 이후 수정·삭제는 Google에 반영되지 않음).
-        </p>
+        <p className="mt-1 text-[11.5px] text-ink-500">연결만으로는 아무것도 전송되지 않습니다. 직접 고른 일정만 생성됩니다.</p>
       )}
     </section>
   );

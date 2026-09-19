@@ -49,7 +49,7 @@ export type MapResult =
   | { ok: false; reason: NotSyncableReason };
 
 /** Shown next to the send button / in the bulk list for such events. */
-export const DEFAULT_END_TEXT = `종료 시각 미입력 · Google에는 시작 후 ${DEFAULT_GOOGLE_EVENT_DURATION_MINUTES / 60}시간 일정으로 생성됩니다.`;
+export const DEFAULT_END_TEXT = `종료 시각 미입력 · Google에는 ${DEFAULT_GOOGLE_EVENT_DURATION_MINUTES / 60}시간 일정으로 생성됩니다.`;
 
 /**
  * The Google event id for a local event: always the same for the same local id, so a retry can never create a

@@ -106,24 +106,25 @@ export function PeriodPicker({
 
   return (
     <section className="space-y-2.5 text-sm" aria-label="추출 기간 선택">
-      <p className={`break-words rounded p-2.5 text-[12.5px] leading-relaxed ${preview.knownChat ? "bg-sky-50 text-sky-900" : "bg-slate-100 text-slate-700"}`}>
+      <p
+        className={`break-words rounded p-2.5 text-[12.5px] leading-relaxed ${preview.knownChat ? "bg-sky-50 text-sky-900" : "bg-slate-100 text-slate-700"}`}
+      >
         {preview.knownChat ? (
           <>
-            이미 등록된 채팅방입니다: <strong>{preview.chatTitle}</strong>. 기존 메시지 {preview.duplicateMessages.toLocaleString()}건은 건너뛰고{" "}
-            <strong>새 메시지 {preview.newMessages.toLocaleString()}건만</strong> 추가됩니다. 이미 추출된 후보와 검토 상태는 그대로이고, 새 후보는 같은 채팅방
-            아래에 들어갑니다.
+            <strong>{preview.chatTitle}</strong> · 이미 등록된 채팅방 — <strong>새 메시지 {preview.newMessages.toLocaleString()}건만</strong>{" "}
+            추가됩니다.
           </>
         ) : (
           <>
-            새 채팅방: <strong>{preview.chatTitle}</strong> — 일정 후보 화면에서 이 제목 아래로 분류됩니다.
-            {preview.duplicateMessages > 0 ? ` (이미 저장된 메시지 ${preview.duplicateMessages.toLocaleString()}건은 건너뜁니다.)` : ""}
+            새 채팅방: <strong>{preview.chatTitle}</strong>
+            {preview.duplicateMessages > 0 ? ` (중복 ${preview.duplicateMessages.toLocaleString()}건 제외)` : ""}
           </>
         )}
       </p>
 
       <div className="flex items-baseline gap-2">
         <h2 className="text-[13.5px] font-semibold">추출 기간</h2>
-        <span className="text-xs text-ink-500">메시지를 보낸 날짜 기준 · 기간 밖 메시지는 저장만 하고, 나중에 더 넓은 기간으로 다시 올리면 추출됩니다</span>
+        <span className="text-xs text-ink-500">메시지를 보낸 날짜 기준</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {PRESETS.map((preset) => (
@@ -134,7 +135,9 @@ export function PeriodPicker({
             aria-pressed={activePreset === preset.label}
             onClick={() => onChange(preset.range())}
             className={`rounded-full px-3.5 py-1.5 text-[12.5px] disabled:opacity-50 ${
-              activePreset === preset.label ? "bg-slate-900 font-medium text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              activePreset === preset.label
+                ? "bg-slate-900 font-medium text-white"
+                : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
             }`}
           >
             {preset.label}
@@ -144,13 +147,25 @@ export function PeriodPicker({
       <div className="flex flex-wrap items-end gap-2.5">
         <label className="flex flex-col gap-1">
           <span className="text-[11.5px] text-ink-500">시작</span>
-          <input type="date" value={value.from} disabled={disabled} onChange={(event) => onChange({ ...value, from: event.target.value })} className={field} />
+          <input
+            type="date"
+            value={value.from}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...value, from: event.target.value })}
+            className={field}
+          />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-[11.5px] text-ink-500">끝</span>
-          <input type="date" value={value.to} disabled={disabled} onChange={(event) => onChange({ ...value, to: event.target.value })} className={field} />
+          <input
+            type="date"
+            value={value.to}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...value, to: event.target.value })}
+            className={field}
+          />
         </label>
-        <span className="pb-2 text-xs text-ink-500">비워 두면 제한 없음</span>
+        <span className="pb-2 text-xs text-ink-500">비우면 전체</span>
       </div>
       {invalid && (
         <p className="text-xs text-red-700" role="alert">
@@ -163,8 +178,8 @@ export function PeriodPicker({
         {llmEnabled ? (
           <>
             {" "}
-            · 그중 LLM 필요 <strong className="font-display">{total.needsLlm.toLocaleString()}</strong>건 (요청 {estimate.requests.toLocaleString()}회 ·{" "}
-            {formatDuration(estimate.seconds)})
+            · 그중 LLM 필요 <strong className="font-display">{total.needsLlm.toLocaleString()}</strong>건 (요청 {estimate.requests.toLocaleString()}회
+            · {formatDuration(estimate.seconds)})
           </>
         ) : (
           <> · 그중 추정 처리 {total.needsLlm.toLocaleString()}건</>
@@ -174,11 +189,14 @@ export function PeriodPicker({
         {preview.importantKeywords > 0 && (
           <>
             {" "}
-            · <span className="text-amber-800">★ 중요 단어 포함 예상</span> <span className="font-display">{total.important.toLocaleString()}</span>건
+            ·{" "}
+            <span className="text-amber-800" title="추출 전 원문 기준 예상치">
+              ★ 중요 예상
+            </span>{" "}
+            <span className="font-display">{total.important.toLocaleString()}</span>건
           </>
         )}
       </p>
-      {preview.importantKeywords > 0 && <p className="text-xs text-ink-500">※ ★ 예상치는 일정 후보 추출 전 원문 기준입니다. 실제 중요 여부는 추출된 일정 제목으로 판단합니다.</p>}
 
       {rows.length > 0 && (
         <div className="max-h-48 overflow-y-auto rounded border border-slate-100">
@@ -186,7 +204,7 @@ export function PeriodPicker({
             <thead className="sticky top-0 bg-white text-left text-ink-500">
               <tr>
                 <th className="px-2 py-1 font-normal">월</th>
-                <th className="py-1 font-normal">추출 대상 (파란 부분 = 선택됨)</th>
+                <th className="py-1 font-normal">추출 대상</th>
                 <th className="whitespace-nowrap py-1 pl-2 text-right font-normal">대상</th>
                 <th className="whitespace-nowrap px-2 py-1 text-right font-normal">{llmEnabled ? "LLM" : "추정"}</th>
               </tr>

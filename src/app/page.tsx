@@ -11,33 +11,77 @@ export const metadata: Metadata = {
 // by AppFrame; the app itself starts at /upload.
 
 const STEPS = [
-  { title: "대화 가져오기", body: "내보낸 .txt / .eml 파일을 올리고 추출 기간을 고릅니다." },
-  { title: "일정 후보 검토", body: "채팅방별로 묶인 후보를 원문과 함께 보고 승인하거나 무시합니다." },
-  { title: "캘린더에서 관리", body: "승인한 일정을 월 달력에서 보고 수정·제거합니다. 출처·★ 중요로 걸러 봅니다." },
-  { title: "Google로 보내기", body: "고른 일정만 확인 단계를 거쳐 Google 캘린더에 생성합니다." },
-  { title: "휴대폰 캘린더에서 확인", body: "같은 계정을 쓰는 아이폰·안드로이드 기본 캘린더 앱에 그대로 나타나고 알림도 받습니다." },
+  { title: "대화 가져오기", body: "내보낸 대화 파일을 올립니다." },
+  { title: "일정 후보 검토", body: "찾아낸 일정을 승인하거나 무시합니다." },
+  { title: "캘린더에서 관리", body: "승인한 일정을 달력에서 보고 고칩니다." },
+  { title: "Google로 보내기", body: "고른 일정만 Google 캘린더에 만듭니다." },
+  { title: "휴대폰 캘린더에서 확인", body: "휴대폰 캘린더 앱에서 알림까지 받습니다." },
 ];
 
 const MOBILE_STEPS = [
-  { image: "/assets/mobile1.jpg", title: "채팅방 메뉴에서 설정(⚙) 열기", note: "채팅방 오른쪽 위 메뉴 → 톱니바퀴.", alt: "카카오톡 채팅방 메뉴 화면", position: "object-top" },
-  { image: "/assets/mobile2.jpg", title: "대화 내용 내보내기 선택", note: "‘채팅방 데이터’ 아래에 있습니다.", alt: "채팅방 설정의 대화 내용 내보내기 항목", position: "object-bottom" },
-  { image: "/assets/mobile3.jpg", title: "텍스트 메시지만 저장", note: "메일로 받은 첨부 파일을 그대로 올리면 됩니다.", alt: "대화 내용 내보내기 방식 선택 화면", position: "object-top" },
+  {
+    image: "/assets/mobile1.jpg",
+    title: "채팅방 메뉴에서 설정(⚙) 열기",
+    note: "채팅방 오른쪽 위 메뉴 → 톱니바퀴.",
+    alt: "카카오톡 채팅방 메뉴 화면",
+    position: "object-top",
+  },
+  {
+    image: "/assets/mobile2.jpg",
+    title: "대화 내용 내보내기 선택",
+    note: "‘채팅방 데이터’ 아래에 있습니다.",
+    alt: "채팅방 설정의 대화 내용 내보내기 항목",
+    position: "object-bottom",
+  },
+  {
+    image: "/assets/mobile3.jpg",
+    title: "텍스트 메시지만 저장",
+    note: "메일로 받은 첨부 파일을 그대로 올리면 됩니다.",
+    alt: "대화 내용 내보내기 방식 선택 화면",
+    position: "object-top",
+  },
 ];
 
 const PC_STEPS = [
-  { image: "/assets/pc1.jpg", width: 223, height: 310, title: "설정 메뉴에서 ‘대화 내용’", note: "채팅방 오른쪽 아래 ⚙ → 대화 내용.", alt: "PC 카카오톡 채팅방 설정 메뉴" },
-  { image: "/assets/pc2.jpg", width: 169, height: 101, title: "‘대화 내보내기’ 누르기", note: "하위 메뉴의 ‘대화 내보내기’ (Ctrl+S).", alt: "대화 내보내기 하위 메뉴" },
-  { image: "/assets/pc3.jpg", width: 391, height: 312, title: "저장한 파일을 업로드", note: "저장한 .txt 파일을 그대로 올립니다.", alt: "대화 내용 메뉴 전체 모습" },
+  {
+    image: "/assets/pc1.jpg",
+    width: 223,
+    height: 310,
+    title: "설정 메뉴에서 ‘대화 내용’",
+    note: "채팅방 오른쪽 아래 ⚙ → 대화 내용.",
+    alt: "PC 카카오톡 채팅방 설정 메뉴",
+  },
+  {
+    image: "/assets/pc2.jpg",
+    width: 169,
+    height: 101,
+    title: "‘대화 내보내기’ 누르기",
+    note: "하위 메뉴의 ‘대화 내보내기’ (Ctrl+S).",
+    alt: "대화 내보내기 하위 메뉴",
+  },
+  {
+    image: "/assets/pc3.jpg",
+    width: 391,
+    height: 312,
+    title: "저장한 파일을 업로드",
+    note: "저장한 .txt 파일을 그대로 올립니다.",
+    alt: "대화 내용 메뉴 전체 모습",
+  },
 ];
 
 const FAQ = [
-  { q: "Google 캘린더가 자동으로 바뀌나요?", a: "아니요. 승인은 ARK:U 안의 캘린더에만 추가합니다. Google에는 직접 고르고 확인한 일정만 보내며, 보낸 뒤의 수정·삭제도 Google에 반영되지 않습니다." },
-  { q: "날짜를 못 찾은 후보는요?", a: "‘날짜 미확정’으로 따로 모입니다. 승인한 뒤 캘린더에서 날짜를 채워 넣거나 무시하면 됩니다." },
-  { q: "놓치면 안 되는 공지가 있어요", a: "중요 단어를 등록하면 제목이 걸리는 후보에 ★ 표시가 붙고, 모아 보거나 Google로 먼저 보낼 수 있습니다." },
+  {
+    q: "Google 캘린더가 자동으로 바뀌나요?",
+    a: "아니요. Google에는 직접 고른 일정만 보냅니다.",
+  },
+  { q: "날짜를 못 찾은 후보는요?", a: "‘날짜 미확정’으로 모이고, 캘린더에서 날짜를 넣을 수 있습니다." },
+  { q: "놓치면 안 되는 공지가 있어요", a: "중요 단어를 등록하면 해당 일정에 ★가 붙어 모아 볼 수 있습니다." },
 ];
 
 function StepNumber({ n }: { n: number }) {
-  return <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ark-500 font-display text-xs font-bold text-white">{n}</span>;
+  return (
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ark-500 font-display text-xs font-bold text-white">{n}</span>
+  );
 }
 
 function Eyebrow({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
@@ -75,7 +119,10 @@ export default function LandingPage() {
       </header>
 
       <main>
-        <section id="intro" className="relative scroll-mt-16 overflow-hidden bg-gradient-to-r from-navy-950 via-navy-700 to-ark-500 px-4 pt-12 sm:px-10">
+        <section
+          id="intro"
+          className="relative scroll-mt-16 overflow-hidden bg-gradient-to-r from-navy-950 via-navy-700 to-ark-500 px-4 pt-12 sm:px-10"
+        >
           <div className="hud-grid absolute inset-0" aria-hidden />
           <div className="relative mx-auto grid max-w-[1200px] items-end gap-8 md:grid-cols-[minmax(0,1fr)_372px]">
             <div className="flex flex-col gap-4 pb-12">
@@ -86,10 +133,10 @@ export default function LandingPage() {
                 골라 정리하는 개인용 도구
               </h1>
               <p className="max-w-[560px] text-[15.5px] leading-[1.75] text-mist-100">
-                대화 파일을 올리면 날짜가 담긴 문장을 찾아 일정 후보로 만듭니다. 승인한 일정만 내 캘린더에 남습니다.
+                대화 파일을 올리면 일정을 찾아 드립니다. 승인한 일정만 캘린더에 남습니다.
               </p>
               <a href="#flow" className="mt-1.5 flex items-center gap-3 self-start text-[13.5px] text-mist-100 hover:text-white">
-                아래로 내려가며 이용 흐름과 내보내기 방법 확인
+                이용 방법 보기
                 <span className="flex h-[26px] w-[26px] items-center justify-center rounded-full border border-white/50" aria-hidden>
                   <span className="block h-[7px] w-[7px] -translate-y-px rotate-45 border-b-[1.5px] border-r-[1.5px] border-white" />
                 </span>
@@ -110,11 +157,14 @@ export default function LandingPage() {
         <section id="flow" className="mx-auto flex max-w-[1280px] scroll-mt-16 flex-col gap-5 px-4 pb-10 pt-11 sm:px-10">
           <div className="flex flex-wrap items-baseline gap-3">
             <Eyebrow>HOW IT WORKS</Eyebrow>
-            <h2 className="text-[25px] font-semibold">업로드에서 휴대폰 캘린더까지 다섯 단계</h2>
+            <h2 className="text-[25px] font-semibold">다섯 단계로 끝납니다</h2>
           </div>
           <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {STEPS.map((step, index) => (
-              <li key={step.title} className={`flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-5 ${index === 0 ? "hud-corner" : ""}`}>
+              <li
+                key={step.title}
+                className={`flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-5 ${index === 0 ? "hud-corner" : ""}`}
+              >
                 <span className="-skew-x-[10deg] self-start bg-slate-900 px-3 py-1 font-display text-xs font-bold text-white">
                   <span className="inline-block skew-x-[10deg]">STEP {index + 1}</span>
                 </span>
@@ -186,7 +236,7 @@ export default function LandingPage() {
               ))}
             </ol>
             <p className="rounded border border-ark-300/40 bg-ark-300/10 px-4 py-3 text-[12.5px] leading-relaxed text-mist-100">
-              내보낸 파일은 이 컴퓨터에서 일정 추출에만 쓰고, 설정 화면에서 채팅방 단위로 언제든 지울 수 있습니다.
+              올린 파일은 일정 추출에만 쓰고, 설정에서 언제든 지울 수 있습니다.
             </p>
           </div>
         </section>
@@ -214,7 +264,10 @@ export default function LandingPage() {
               <p className="text-[14.5px] text-[#eaf5fd]">대화 파일 하나면 됩니다.</p>
             </div>
             <div className="flex-1" />
-            <Link href="/upload" className="rounded bg-slate-900 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_3px_0_rgb(0_0_0/0.25)] hover:bg-slate-700">
+            <Link
+              href="/upload"
+              className="rounded bg-slate-900 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_3px_0_rgb(0_0_0/0.25)] hover:bg-slate-700"
+            >
               대화 파일 업로드
             </Link>
           </div>

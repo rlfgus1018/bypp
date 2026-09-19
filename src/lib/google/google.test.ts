@@ -482,7 +482,7 @@ describe("timed events without an end", () => {
   it("single send: one insert with the derived end; the local event keeps endAt = null; retries never duplicate", async () => {
     await connect();
     const event = addEvent({ endAt: null });
-    expect(getSyncView(db, event, getConnectionView(db, true), clock)).toMatchObject({ canSend: true, blockedBy: null, defaultEndNote: expect.stringContaining("시작 후 1시간") });
+    expect(getSyncView(db, event, getConnectionView(db, true), clock)).toMatchObject({ canSend: true, blockedBy: null, defaultEndNote: expect.stringContaining("1시간 일정") });
     expect(getSyncView(db, addEvent(), getConnectionView(db, true), clock).defaultEndNote).toBeNull();
 
     expect(await createGoogleEvent(deps(), event.id)).toMatchObject({ result: "synced", externalEventId: googleEventIdFor(event.id) });

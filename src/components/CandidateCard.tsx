@@ -89,7 +89,9 @@ export function CandidateCard({
         </span>
         <span className="font-display text-ink-500">{candidate.extractor.split(":")[0]}</span>
         {candidate.status !== "PENDING" && (
-          <span className={`ml-auto font-medium ${candidate.status === "APPROVED" ? "text-emerald-700" : "text-ink-500"}`}>{STATUS_LABEL[candidate.status]}</span>
+          <span className={`ml-auto font-medium ${candidate.status === "APPROVED" ? "text-emerald-700" : "text-ink-500"}`}>
+            {STATUS_LABEL[candidate.status]}
+          </span>
         )}
       </div>
 
@@ -100,42 +102,63 @@ export function CandidateCard({
           <p className={`text-[12.5px] ${candidate.location ? "text-ink-600" : "text-ink-500"}`}>{candidate.location ?? "장소 정보 없음"}</p>
           {candidate.sourceExcerpt && (
             <p className="mt-1 border-l-2 border-yellow-400 bg-yellow-50 px-2.5 py-2 text-xs leading-relaxed text-ink-600">
-              추출 근거 · <span className="font-display">{formatSent(candidate.source.sentAt)}</span> {candidate.source.sender} “{candidate.sourceExcerpt}”
+              추출 근거 · <span className="font-display">{formatSent(candidate.source.sentAt)}</span> {candidate.source.sender} “
+              {candidate.sourceExcerpt}”
             </p>
           )}
           {candidate.reasoningSummary && <p className="text-xs text-ink-500">{candidate.reasoningSummary}</p>}
           {slotTaken && candidate.status === "PENDING" && (
             <p className="rounded-[3px] border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
-              같은 시각·분류의 캘린더 일정이 이미 있습니다. 반복 공지라면 무시해도 됩니다(승인하면 별도 일정으로 추가됩니다).
+              같은 시각의 일정이 이미 캘린더에 있습니다.
             </p>
           )}
           {googleCreated && candidate.status === "APPROVED" && (
             <p className="rounded-[3px] bg-slate-50 px-2.5 py-1.5 text-xs text-ink-600">
-              Google 캘린더에도 만들어진 일정입니다. 검토 대기로 되돌리면 이 앱의 캘린더에서만 빠지고, Google의 일정은 지워지지 않습니다.
+              Google에도 생성된 일정입니다. 되돌려도 Google의 일정은 남습니다.
             </p>
           )}
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-ark-700">
               원본 메시지 보기 — {candidate.source.sender} · {formatKst(candidate.source.sentAt, true)}
             </summary>
-            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs leading-relaxed">{candidate.source.text}</pre>
+            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs leading-relaxed">
+              {candidate.source.text}
+            </pre>
           </details>
         </div>
 
         <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[150px]">
           {candidate.status === "PENDING" ? (
             <>
-              <StatusButton id={candidate.id} status="APPROVED" label="승인" className="bg-emerald-700 font-semibold text-white hover:bg-emerald-600" />
-              <StatusButton id={candidate.id} status="IGNORED" label="무시" className="border border-slate-300 bg-white text-slate-700 hover:bg-slate-50" />
+              <StatusButton
+                id={candidate.id}
+                status="APPROVED"
+                label="승인"
+                className="bg-emerald-700 font-semibold text-white hover:bg-emerald-600"
+              />
+              <StatusButton
+                id={candidate.id}
+                status="IGNORED"
+                label="무시"
+                className="border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              />
             </>
           ) : (
             <>
               {calendarHref && (
-                <Link href={calendarHref} className="w-full rounded border border-emerald-600 px-3 py-2 text-center text-[13px] font-medium text-emerald-700 hover:bg-emerald-50">
+                <Link
+                  href={calendarHref}
+                  className="w-full rounded border border-emerald-600 px-3 py-2 text-center text-[13px] font-medium text-emerald-700 hover:bg-emerald-50"
+                >
                   캘린더에서 보기 →
                 </Link>
               )}
-              <StatusButton id={candidate.id} status="PENDING" label="검토 대기로 되돌리기" className="border border-slate-300 bg-white text-[12.5px] text-slate-700 hover:bg-slate-50" />
+              <StatusButton
+                id={candidate.id}
+                status="PENDING"
+                label="되돌리기"
+                className="border border-slate-300 bg-white text-[12.5px] text-slate-700 hover:bg-slate-50"
+              />
             </>
           )}
           <ImportanceButtons id={candidate.id} reason={importance} action={setCandidateImportance} layout="stack" />

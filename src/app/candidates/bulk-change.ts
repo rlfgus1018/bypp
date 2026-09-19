@@ -55,12 +55,19 @@ export function changeFilteredCandidates(db: Db, params: Record<string, string |
   // The match count must equal what the user was shown: if the list changed in between (extraction still
   // running, another tab), nothing is changed and the user is asked to look again.
   const ids = candidatesRepo(db).listIds(toCandidateFilter(values, tab, scope));
-  if (ids.length !== expected) return refuse(`목록이 그 사이에 바뀌었습니다(화면 ${expected}건 → 현재 ${ids.length}건). 아무것도 바꾸지 않았습니다. 목록을 다시 확인해 주세요.`, true);
+  if (ids.length !== expected)
+    return refuse(
+      `목록이 그 사이에 바뀌었습니다(화면 ${expected}건 → 현재 ${ids.length}건). 아무것도 바꾸지 않았습니다. 목록을 다시 확인해 주세요.`,
+      true,
+    );
 
   // For "approve all", what the user was told about duplicates must still hold, and they must have chosen.
   const split = target === "APPROVED" ? planBulkApproval(db, values, tab, scope) : null;
   if (split && split.duplicates.length !== expectedDuplicates) {
-    return refuse(`캘린더와 겹치는 후보 수가 그 사이에 바뀌었습니다(화면 ${expectedDuplicates}건 → 현재 ${split.duplicates.length}건). 아무것도 바꾸지 않았습니다. 다시 확인해 주세요.`, true);
+    return refuse(
+      `캘린더와 겹치는 후보 수가 그 사이에 바뀌었습니다(화면 ${expectedDuplicates}건 → 현재 ${split.duplicates.length}건). 아무것도 바꾸지 않았습니다. 다시 확인해 주세요.`,
+      true,
+    );
   }
   if (split && split.duplicates.length > 0 && !duplicates) return refuse("이미 캘린더에 있는 일정과 겹치는 후보를 어떻게 할지 선택해 주세요.");
 

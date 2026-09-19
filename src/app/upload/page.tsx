@@ -54,9 +54,7 @@ export default async function HomePage() {
               {llm ? "LLM ON" : "LLM OFF"}
             </span>
             <span className={`text-[12.5px] ${llm ? "text-amber-900" : "text-ink-600"}`}>
-              {llm
-                ? `${providerLabel} API가 활성화되어 있습니다.`
-                : "모든 처리가 이 컴퓨터 안에서 이루어집니다. 애매한 메시지는 저신뢰 추정으로 추출합니다."}
+              {llm ? `${providerLabel} API가 활성화되어 있습니다.` : "외부 전송 없이 서버 안에서만 처리합니다."}
             </span>
             <Link href="/settings#extraction" className="ml-auto text-xs text-ark-700 hover:underline">
               설정에서 확인
@@ -64,9 +62,7 @@ export default async function HomePage() {
           </div>
           {llm && (
             <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900">
-              ⚠ 일정 해석이 필요한 일부 카카오톡 메시지(전화번호·이메일·URL 마스킹, 보낸 사람 제외
-              {llm.batchSize > 1 ? `, 같은 방의 메시지를 한 요청에 최대 ${llm.batchSize}건씩` : ""})가 외부 {providerLabel} API로 전송될 수 있습니다.
-              실제 개인/타인의 대화 데이터를 전송하기 전에 선택한 공급자의 최신 데이터 처리 정책을 확인하세요.{" "}
+              ⚠ 해석이 필요한 일부 메시지가 외부 {providerLabel} API로 전송됩니다(전화번호·이메일·URL은 가리고, 보낸 사람은 제외).{" "}
               <span className="font-display text-xs">({llmLabel})</span>
             </p>
           )}
@@ -137,7 +133,7 @@ export default async function HomePage() {
             </Link>
           </div>
           {upcoming.length === 0 ? (
-            <p className="mt-2 text-xs text-ink-500">예정된 일정이 없습니다. 후보를 승인하면 여기에 나타납니다.</p>
+            <p className="mt-2 text-xs text-ink-500">예정된 일정이 없습니다.</p>
           ) : (
             <ul className="mt-2.5 divide-y divide-slate-100">
               {upcoming.map((event, index) => {

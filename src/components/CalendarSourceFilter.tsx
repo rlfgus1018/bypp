@@ -19,11 +19,7 @@ export function CalendarSourceFilter({
   const toggle = (key: string) => (chosen.has(key) ? selected.filter((k) => k !== key) : [...selected, key]);
   const chip = (active: boolean, important = false) =>
     `rounded-full px-3 py-1.5 text-[12.5px] ${
-      active
-        ? important
-          ? "bg-amber-500 text-white"
-          : "bg-sky-700 text-white"
-        : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+      active ? (important ? "bg-amber-500 text-white" : "bg-sky-700 text-white") : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
     }`;
 
   return (
@@ -43,7 +39,6 @@ export function CalendarSourceFilter({
           {title} <span className="font-display opacity-70">{count.toLocaleString()}</span>
         </Link>
       ))}
-      {selected.length > 0 && <span className="basis-full text-right text-[11.5px] text-ink-500">선택한 출처 중 하나라도 해당하는 일정만 표시 중</span>}
     </div>
   );
 }

@@ -43,16 +43,21 @@ export function ChatSidebar({
               <span className="absolute bottom-[11px] left-0 top-[11px] w-[3px] bg-white" aria-hidden />
               <span className="break-words text-[13px] font-medium leading-snug text-white">{chat.title}</span>
               <span className="flex flex-wrap gap-1.5 text-[11px]">
-                <span className="rounded-[2px] bg-white px-2 py-0.5 font-display font-semibold text-ark-700">대기 {chat.counts.PENDING.toLocaleString()}</span>
+                <span className="rounded-[2px] bg-white px-2 py-0.5 font-display font-semibold text-ark-700">
+                  대기 {chat.counts.PENDING.toLocaleString()}
+                </span>
                 <span className="rounded-[2px] bg-white/20 px-2 py-0.5 font-medium text-white">승인 {chat.counts.APPROVED.toLocaleString()}</span>
-                {chat.important > 0 && <span className="rounded-[2px] bg-amber-400 px-2 py-0.5 font-semibold text-amber-950">★ {chat.important.toLocaleString()}</span>}
+                {chat.important > 0 && (
+                  <span className="rounded-[2px] bg-amber-400 px-2 py-0.5 font-semibold text-amber-950">★ {chat.important.toLocaleString()}</span>
+                )}
               </span>
             </Link>
           ) : (
             <Link key={chat.key} href={hrefFor(chat.key)} className="flex flex-col gap-1 rounded-[3px] border border-white/20 p-3 hover:bg-white/5">
               <span className="break-words text-[13px] leading-snug text-mist-100">{chat.title}</span>
               <span className="text-[11.5px] text-mist-300">
-                대기 {chat.counts.PENDING.toLocaleString()} · 승인 {chat.counts.APPROVED.toLocaleString()} · 무시 {chat.counts.IGNORED.toLocaleString()}
+                대기 {chat.counts.PENDING.toLocaleString()} · 승인 {chat.counts.APPROVED.toLocaleString()} · 무시{" "}
+                {chat.counts.IGNORED.toLocaleString()}
                 {chat.important > 0 ? ` · ★ ${chat.important.toLocaleString()}` : ""}
               </span>
             </Link>
@@ -69,9 +74,12 @@ export function ChatSidebar({
         </Link>
       </nav>
 
-      <Link href="/settings" className="mt-1.5 flex flex-col gap-1 rounded-[3px] border border-amber-400/45 bg-amber-400/15 p-3 hover:bg-amber-400/20">
+      <Link
+        href="/settings"
+        className="mt-1.5 flex flex-col gap-1 rounded-[3px] border border-amber-400/45 bg-amber-400/15 p-3 hover:bg-amber-400/20"
+      >
         <span className="text-[12.5px] font-medium text-amber-300">★ 중요 단어</span>
-        <span className="text-[11.5px] leading-relaxed text-amber-100">{keywords.length > 0 ? keywords.join(" · ") : "아직 없음 — 등록하면 관련 후보에 ★가 붙습니다"}</span>
+        <span className="text-[11.5px] leading-relaxed text-amber-100">{keywords.length > 0 ? keywords.join(" · ") : "아직 없음"}</span>
         <span className="text-[11.5px] text-amber-300">중요 단어 설정 →</span>
       </Link>
 
