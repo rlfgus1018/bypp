@@ -89,8 +89,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
           <div className="min-w-0">
             <h1 className="text-[21px] font-semibold">일정 후보</h1>
             <p className="mt-0.5 text-[12.5px] text-ink-600">
-              추출한 제목·날짜·장소를 원문과 함께 확인하고 승인하거나 무시합니다. 승인하면 이 앱의 캘린더에 추가되며, Google에는 아무것도 전송되지
-              않습니다.
+              추출한 제목·날짜·장소를 원문과 함께 확인하고 승인하거나 무시합니다. 승인하면 이 앱의 캘린더에 추가됩니다.
             </p>
           </div>
           <div className="ml-auto">
