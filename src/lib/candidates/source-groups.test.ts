@@ -292,3 +292,33 @@ describe("bulk actions stay inside the chosen chat", () => {
     expect(copy.duplicateCount).toBeGreaterThan(0); // chat A's events count, although chat A is not selected
   });
 });
+
+describe("title search", () => {
+  it("narrows list, counts and bulk targets alike (whitespace and case ignored), and a bulk ignore touches only the matches", async () => {
+    await upload(A_TEXT, A_FILE);
+    const everything = view({ status: "PENDING" });
+    const target = everything.sections[0].shown.find((candidate) => (candidate.title ?? "").replace(/\s/g, "").length >= 4)!;
+    const compact = target.title!.replace(/\s/g, "");
+    const q = ` ${compact.slice(0, 2)}   ${compact.slice(2, 4).toUpperCase()} `; // spaced out and upper-cased on purpose
+
+    const cleaned = `${compact.slice(0, 2)} ${compact.slice(2, 4).toUpperCase()}`; // trimmed, inner whitespace collapsed
+    expect(readFilters({ q }).q).toBe(cleaned);
+    expect(isFiltering(readFilters({ q }))).toBe(true);
+    expect(searchFields(readFilters({ q }))).toMatchObject({ q: cleaned });
+
+    const found = view({ status: "PENDING", q });
+    const ids = found.sections.flatMap((section) => section.shown.map((candidate) => candidate.id));
+    expect(ids).toContain(target.id);
+    expect(found.matched).toBe(ids.length);
+    expect(found.matched).toBeLessThan(everything.matched);
+    expect(found.counts.PENDING).toBe(found.matched);
+    expect(view({ status: "PENDING", q: "절대없는단어xyz" }).matched).toBe(0);
+
+    const result = changeFilteredCandidates(db, { status: "PENDING", q, target: "IGNORED", expected: String(found.matched) });
+    expect(result).toMatchObject({ ok: true });
+    expect(result.ok && result.redirectTo).toContain("q=");
+    const after = candidatesRepo(db).countByStatus({});
+    expect(after.IGNORED).toBe(found.matched);
+    expect(after.PENDING).toBe(everything.matched - found.matched);
+  });
+});

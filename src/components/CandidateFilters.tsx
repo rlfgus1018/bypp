@@ -10,6 +10,8 @@ export type FilterValues = {
   to: string;
   undated: boolean;
   sort: "message" | "schedule";
+  /** title search text ("" = none); whitespace and case are ignored when matching */
+  q: string;
   /** the chosen chat (an opaque source key); "" = all chats. A scope, not a search condition. */
   source: string;
   /** the request named a chat in a malformed way (junk, several values): show nothing, change nothing */
@@ -35,6 +37,10 @@ export function CandidateFilters({ status, values, active }: { status: TabKey; v
       {values.source && <input type="hidden" name="source" value={values.source} />}
       {values.importance && <input type="hidden" name="importance" value={values.importance} />}
       <div className="flex flex-wrap items-end gap-x-2.5 gap-y-2">
+        <label className="flex min-w-40 flex-1 flex-col gap-1">
+          <span className={label}>제목 검색</span>
+          <input type="search" name="q" defaultValue={values.q} maxLength={50} placeholder="예: 제휴, 설문" className={field} />
+        </label>
         <label className="flex flex-col gap-1">
           <span className={label}>종류</span>
           <select name="action" defaultValue={values.action} className={field}>

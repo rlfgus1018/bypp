@@ -42,6 +42,7 @@ export function readFilters(params: Params): FilterValues {
     to: DATE.test(one("to")) ? one("to") : "",
     undated: one("undated") === "1",
     sort: one("sort") === "schedule" ? "schedule" : "message",
+    q: one("q").normalize("NFC").trim().replace(/\s+/gu, " ").slice(0, 50),
     source: sourceInvalid ? "" : source,
     sourceInvalid,
     importance: importanceInvalid || importanceValue !== "important" ? "" : "important",
@@ -51,7 +52,7 @@ export function readFilters(params: Params): FilterValues {
 
 /** Search conditions only. The chosen chat and the importance scope are scopes and do not count as "filtering". */
 export function isFiltering(values: FilterValues): boolean {
-  return Boolean(values.action || values.category || values.from || values.to);
+  return Boolean(values.q || values.action || values.category || values.from || values.to);
 }
 
 export type SourceScope = { kind: "all" } | { kind: "group"; group: SourceGroup } | { kind: "unknown" };
@@ -70,6 +71,7 @@ export function toCandidateFilter(values: FilterValues, tab: TabKey, scope: Sour
     status: tab === "ALL" ? undefined : tab,
     action: (values.action || undefined) as CandidateFilter["action"],
     category: (values.category || undefined) as CandidateFilter["category"],
+    titleContains: values.q || undefined,
     from: values.from || undefined,
     to: values.to || undefined,
     basis: values.basis,
@@ -85,8 +87,8 @@ export function toCandidateFilter(values: FilterValues, tab: TabKey, scope: Sour
 /** The search conditions as URL/form fields (without the tab and without the chat). */
 export function searchFields(values: FilterValues): Record<string, string> {
   const fields: Record<string, string> = {};
-  const { action, category, basis, from, to, sort } = values;
-  for (const [key, value] of Object.entries({ action, category, basis, from, to, sort, undated: values.undated ? "1" : "" }))
+  const { q, action, category, basis, from, to, sort } = values;
+  for (const [key, value] of Object.entries({ q, action, category, basis, from, to, sort, undated: values.undated ? "1" : "" }))
     if (value) fields[key] = String(value);
   return fields;
 }

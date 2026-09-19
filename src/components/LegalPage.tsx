@@ -12,6 +12,7 @@ export function LegalPage({ eyebrow, title, updated, children }: { eyebrow: stri
           <Link href="/" className="flex items-center gap-2.5">
             <span className="block h-4 w-4 rotate-45 bg-navy-950" aria-hidden />
             <span className="font-display text-[17px] font-semibold tracking-[0.1em]">ARK:U</span>
+            <span className="text-[11px] text-ink-500">아크 유</span>
           </Link>
           <div className="flex-1" />
           <Link href="/" className="text-[13.5px] text-ink-600 hover:text-slate-900">
@@ -31,6 +32,7 @@ export function LegalPage({ eyebrow, title, updated, children }: { eyebrow: stri
         <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-3.5">
           <span className="block h-3 w-3 rotate-45 bg-ark-300" aria-hidden />
           <span className="font-display text-sm font-semibold tracking-[0.1em] text-white">ARK:U</span>
+          <span className="text-[11px] text-mist-300">아크 유</span>
           <span className="text-[12.5px] text-mist-300">개인용 일정 정리 도구</span>
           <div className="flex-1" />
           <nav className="flex flex-wrap gap-3 text-[12.5px] text-mist-300" aria-label="바닥글">

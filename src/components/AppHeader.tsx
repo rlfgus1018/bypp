@@ -19,6 +19,7 @@ export function AppHeader({ pendingCount, google }: { pendingCount: number; goog
         <Link href="/" className="flex items-center gap-2.5" title="서비스 소개 · 대화 내보내기 방법">
           <span className="block h-[15px] w-[15px] rotate-45 bg-ark-300" aria-hidden />
           <span className="font-display text-base font-semibold tracking-[0.1em] text-white">ARK:U</span>
+          <span className="hidden text-[11px] text-mist-300 sm:inline">아크 유</span>
         </Link>
         <NavLinks pendingCount={pendingCount} />
         <div className="flex-1" />

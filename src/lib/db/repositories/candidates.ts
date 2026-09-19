@@ -41,6 +41,8 @@ export type CandidateFilter = {
    * caller). An EMPTY array matches nothing: an unknown source must never widen to "everything".
    */
   sources?: SourceTuple[];
+  /** Title search: kept when the title contains this text (whitespace and case ignored, like important keywords). */
+  titleContains?: string;
   /** "important" = only candidates that are important (override, else a keyword in the title) */
   importance?: "important";
   /** the request itself was malformed: match nothing (never widen to "everything") */
@@ -65,6 +67,8 @@ function buildWhere(filter: CandidateFilter, withStatus: boolean): { sql: string
   if (withStatus && filter.status) add("c.status = ?", filter.status);
   if (filter.action) add("c.action = ?", filter.action);
   if (filter.category) add("c.category = ?", filter.category);
+  // Both sides go through bypp_norm (the SQL twin of normalizeForMatch); a NULL title never matches.
+  if (filter.titleContains) add("instr(bypp_norm(COALESCE(c.title, '')), bypp_norm(?)) > 0", filter.titleContains);
 
   if (filter.basis === "message") {
     if (filter.from) add("substr(m.sent_at, 1, 10) >= ?", filter.from);
